@@ -62,7 +62,7 @@ makePkmers <- function(k) {
 isPuri <- function(kmers, nflank) {
 
     centerIdxs <- rep(nflank + 1, length(kmers))
-    centers <- Biostrings::subseq(kmers, centerIdxs, centerIdxs)
+    centers <- substr(kmers, centerIdxs, centerIdxs)
     ispuri <- centers == "A" | centers == "G"
 
     return(ispuri)
@@ -336,3 +336,17 @@ pkmersGet.MutMatrix <- function(mutmatrix) {
     return(unique(modeldt$kmer))
 
 }
+
+#' @export
+genomedirGet <- function(x) {
+
+    UseMethod("genomedirGet", x)
+
+}
+
+genomedirGet.Rmutmod <- function(rmutmod) {
+
+    return(rmutmod$genomedir)
+
+}
+
