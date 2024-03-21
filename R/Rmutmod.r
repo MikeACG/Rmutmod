@@ -60,6 +60,7 @@ makePkmers <- function(k) {
 }
 
 # checks if central nucleotide of kmer is a purine
+#' @export
 isPuri <- function(kmers, nflank) {
 
     centerIdxs <- rep(nflank + 1, length(kmers))
