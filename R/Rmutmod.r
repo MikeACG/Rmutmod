@@ -348,6 +348,7 @@ genomedirGet <- function(x) {
 
 }
 
+#' @export
 genomedirGet.Rmutmod <- function(rmutmod) {
 
     return(rmutmod$genomedir)
