@@ -22,7 +22,7 @@ new_MutMatrix <- function(
         list(
             modeldt = modeldt,
             mafdir = mafdir,
-            chort = cohort,
+            cohort = cohort,
             k = k,
             targetdir = targetdir,
             genomedir = genomedir,
@@ -42,6 +42,7 @@ kGet <- function(x) {
 
 }
 
+#' @export
 kGet.Rmutmod <- function(rmutmod) {
 
     return(rmutmod$k)
@@ -301,6 +302,7 @@ modelGet <- function(x) {
 
 }
 
+#' @export
 modelGet.MutMatrix <- function(mutmatrix) {
 
     return(mutmatrix$modeldt)
@@ -314,6 +316,7 @@ mutpredict <- function (x, ...) {
 
 }
 
+#' @export
 mutpredict.MutMatrix <- function(mutmatrix, newdata, ...) {
 
     modeldt <- modelGet(mutmatrix)
@@ -330,6 +333,7 @@ pkmersGet <- function(x) {
 
 }
 
+#' @export
 pkmersGet.MutMatrix <- function(mutmatrix) {
 
     modeldt <- modelGet(mutmatrix)
@@ -357,6 +361,7 @@ mafdirGet <- function(x) {
 
 }
 
+#' @export
 mafdirGet.Rmutmod <- function(rmutmod) {
 
     return(rmutmod$mafdir)
@@ -370,6 +375,7 @@ cohortGet <- function(x) {
 
 }
 
+#' @export
 cohortGet.Rmutmod <- function(rmutmod) {
 
     return(rmutmod$cohort)
