@@ -350,3 +350,29 @@ genomedirGet.Rmutmod <- function(rmutmod) {
 
 }
 
+#' @export
+mafdirGet <- function(x) {
+
+    UseMethod("mafdirGet", x)
+
+}
+
+mafdirGet.Rmutmod <- function(rmutmod) {
+
+    return(rmutmod$mafdir)
+
+}
+
+#' @export
+cohortGet <- function(x) {
+
+    UseMethod("cohortGet", x)
+
+}
+
+cohortGet.Rmutmod <- function(rmutmod) {
+
+    return(rmutmod$cohort)
+
+}
+
