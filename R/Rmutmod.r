@@ -2,20 +2,15 @@
 #' @importFrom dplyr %>%
 
 new_MutMatrix <- function(
-    modeldt = data.table::data.table(
-        kmer = character(0L),
-        ref = character(0L),
-        mut = character(0L),
-        n = integer(0L),
-        abundance.adj = numeric(0L),
-        mutRate = numeric(0L)
-    ),
+    modeldt = data.table::data.table(),
     mafdir = character(1L),
     cohort = character(1L),
     k = integer(1L),
     targetdir = character(1L),
     genomedir = character(1L),
-    chrs = character(0L)
+    chrs = character(0L),
+    fdirs = setNames(character(0L), character(0L)),
+    fplabs = setNames(list(), character(0L))
 ) {
 
     mutMatrix <- structure(
@@ -26,12 +21,46 @@ new_MutMatrix <- function(
             k = k,
             targetdir = targetdir,
             genomedir = genomedir,
-            chrs = chrs
+            chrs = chrs,
+            fdirs = fdirs,
+            fplabs = fplabs
         ),
         class = c("Rmutmod", "MutMatrix")
     )
 
     return(mutMatrix)
+
+}
+
+validate_MutMatrix <- function(mutMatrix) {
+
+    if (!("data.table" %in% class(mutMatrix$modeldt))) stop("model must be a data.table")
+    .mcols <- c("kmer", "ref", "mut", "n", "abundance.adj", "mutRate")
+
+    # check mandatory character columns
+    if (!(.mcols[1:3] %in% names(mutMatrix$modeldt))) stop("missing columns in model")
+    if (!(is.character(mutMatrix$modeldt$kmer) & is.character(mutMatrix$modeldt$ref) & is.character(mutMatrix$modeldt$mut))) {
+
+        stop("model columns of wrong type")
+
+    }
+
+    # check mandatory number columns
+    if (!(.mcols[4:6] %in% names(mutMatrix$modeldt))) stop("missing columns in model")
+    if (!(is.integer(mutMatrix$modeldt$n) & is.numeric(mutMatrix$modeldt$abundance.adj) & is.numeric(mutMatrix$modeldt$mutRate))) {
+
+        stop("model columns of wrong type")
+
+    }
+
+    # check optional character feature columns
+    .ocols <- setdiff(names(mutMatrix$modeldt), .mcols)
+    if (length(.ocols) > 0) {
+
+        if (!(all(grepl("^f[.]", .ocols)))) stop("optional columns in model incorrectly formatted")
+        if (!(all(is.character(.ocols)))) stop("model optional columns must be of type character")
+
+    }
 
 }
 
@@ -74,14 +103,13 @@ isPuri <- function(kmers, nflank) {
 #' @export
 ranges2kmerdt <- function(.start, .end, .chr, nflank, genome) {
 
-
     siteIdxs <- mapply(':', .start, .end, SIMPLIFY = FALSE)
     rangeids <- rep(1:length(siteIdxs), sapply(siteIdxs, length))
     siteIdxs <- unlist(siteIdxs, recursive = FALSE, use.names = FALSE)
 
     kmerRanges <- GenomicRanges::GRanges(rep(.chr, length(siteIdxs)), IRanges::IRanges(siteIdxs - nflank, siteIdxs + nflank))
     kmerdt <- data.table::data.table(
-        position = siteIdxs,
+        start = siteIdxs,
         kmer = as.character(genome[kmerRanges], use.names = FALSE),
         rangeid = rangeids
     )
@@ -95,28 +123,21 @@ ranges2kmerdt <- function(.start, .end, .chr, nflank, genome) {
 
 }
 
-# count pyrimidine oriented kmers in sites where its possible to detect a mutation
-countSites <- function(targetdb, .chr, nflank, genome, pkmers) {
+# get pyrimidine oriented kmers in sites where its possible to detect a mutation
+target2kmerdt <- function(targetdb, .chr, nflank, genome) {
 
     targetdt <- targetdb %>% 
         dplyr::filter(seqnames == .chr) %>%
         dplyr::select(dplyr::all_of(c("start", "end"))) %>%
         dplyr::collect()
     
-    kmerdt <- ranges2kmerdt(targetdt$start, targetdt$end, .chr, nflank, genome)
-    
-    countdt <- data.table::CJ(kmer = pkmers, unique = TRUE)
-    countdt[
-        kmerdt[, list("abundance" = .N), by = "kmer"],
-        "abundance" := i.abundance,
-        on = "kmer"
-    ]
+    tkmerdt <- ranges2kmerdt(targetdt$start, targetdt$end, .chr, nflank, genome)
 
-    return(countdt)
+    return(tkmerdt)
 
 }
 
-countMutations <- function(mafdb, cohort, .chr, nflank, genome, pkmers) {
+maf2mutdt <- function(mafdb, cohort, .chr, nflank, genome) {
 
     # load mutations and remove flagged records
     mafdt <- mafdb %>% 
@@ -126,19 +147,15 @@ countMutations <- function(mafdb, cohort, .chr, nflank, genome, pkmers) {
     mafdt <- mafdt[modelExclude == FALSE]
 
     # if no mutations return 0 counts for all categories
-    countdt <- data.table::CJ(kmer = pkmers, mut = c("A", "C", "G", "T"), unique = TRUE)
-    if (nrow(mafdt) == 0L) {
-
-        countdt[, "n" := rep(0L, nrow(countdt))]
-        return(countdt)
-
-    }
+    mutdt <- data.table::data.table(position = integer(0), kmer = character(0), mut = character(0))
+    if (nrow(mafdt) == 0L) return(mutdt)
 
     mafRanges <- GenomicRanges::GRanges(
         rep(.chr, nrow(mafdt)),
         IRanges::IRanges(mafdt$Start_Position - nflank, mafdt$Start_Position + nflank)
     )
     mutdt <- data.table::data.table(
+        start = mafdt$Start_Position,
         kmer = as.character(genome[mafRanges], use.names = FALSE),
         mut = mafdt$Tumor_Seq_Allele2
     )
@@ -150,14 +167,68 @@ countMutations <- function(mafdb, cohort, .chr, nflank, genome, pkmers) {
             "mut" = as.character(Biostrings::reverseComplement(Biostrings::DNAStringSet(mut)), use.names = FALSE)
         )
     ]
-
-    countdt[
-        mutdt[, list("n" = .N), by = c("kmer", "mut")],
-        "n" := i.n,
-        on = c("kmer", "mut")
-    ]
     
+    return(mutdt)
+
+}
+
+addFeature <- function(tdt, featuredt, fname) {
+
+    tdt[
+        featuredt,
+        (fname) := i.feature,
+        on = "start"
+    ]
+
+}
+
+dtcount <- function(.dt, pvl, cname) {
+
+    countdt <- do.call(
+        data.table::CJ,
+        c(pvl, unique = TRUE)
+    )
+    countdt[
+        .dt[, list("count" = .N), by = names(pvl)],
+        (cname) := i.count,
+        on = names(pvl)
+    ]
+
     return(countdt)
+
+}
+
+chrom2matrix <- function(.chr, mafdb, targetdb, genomePath, nflank, pkmers, fdirs, fplabs) {
+
+    genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
+    tkmerdt <- target2kmerdt(targetdb, .chr, nflank, genome)
+    mutdt <- maf2mutdt(mafdb, cohort, .chr, nflank, genome)
+    rm(genome)
+
+    jj <- 1L
+    while (jj <= length(fdirs)) {
+
+        featuredb <- arrow::open_dataset(fdirs[jj])
+        featuredt <- featuredb %>% 
+            dplyr::filter(seqnames == .chr) %>%
+            dplyr::collect()
+
+        addFeature(tkmerdt, featuredt, names(fdirs)[jj])
+        addFeature(mutdt, featuredt, names(fdirs)[jj])
+
+        jj <- jj + 1
+        rm(featuredt, featuredb)
+
+    }
+
+    pAbu <- append(list("kmer" = pkmers), fplabs)
+    abudt <- dtcount(tkmerdt, pAbu, "abundance")
+
+    pMut <- append(list("mut" = c("A", "C", "G", "T")), pAbu)
+    matrixdt <- dtcount(mutdt, pMut, "n")
+
+    matrixdt[abudt, "abundance" := i.abundance, on = names(pAbu)]
+    return(matrixdt)
 
 }
 
@@ -173,7 +244,7 @@ adjustByGender <- function(abundance, .chrs, mafdb, cohort) {
     # count gender of tumors
     countdt <- data.table::CJ(gender = c("UKNOWN", "FEMALE", "MALE"))
     countdt[
-        data.table(gendt)[, list("n" = .N), by = "gender"],
+        data.table::data.table(gendt)[, list("n" = .N), by = "gender"],
         "n" := i.n,
         on = "gender"
     ]
@@ -182,7 +253,7 @@ adjustByGender <- function(abundance, .chrs, mafdb, cohort) {
     # we will see the abundance counts as being composed of
     # equal tumor contributions. If all tumors had the same set of chromosomes,
     # each one would contribute 2 chromosomes per chromosome ID
-    adjdt <- data.table(
+    adjdt <- data.table::data.table(
         abundance = abundance,
         chr = .chrs,
         nchr = 2L * sum(countdt$n)
@@ -191,6 +262,7 @@ adjustByGender <- function(abundance, .chrs, mafdb, cohort) {
 
     # in the case of autosomes, all tumors do contribute 2 chromosomes
     # per chromosome id, but for sex chromosomes this must be adjusted
+    # for "UKNOWN" gender tumors, it is assumed mutations in the sex chromosomes were excluded
     adjdt[, "nchr.adj" := nchr]
     adjdt[
         chr == "chrX",
@@ -207,56 +279,55 @@ adjustByGender <- function(abundance, .chrs, mafdb, cohort) {
 }
 
 #' @export
-trainMutMat <- function(mafdir, cohort, k, targetdir, genomedir, chrs = c(paste0("chr", 1:22), "chrX", "chrY")) {
+trainMutMat <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs) {
 
     pkmers <- makePkmers(k)
     nflank <- (k - 1) / 2
     mafdb <- arrow::open_dataset(mafdir)
     targetdb <- arrow::open_dataset(targetdir)
     genomePaths <- paste0(genomedir, chrs, ".fasta")
-    abudt <- list()
-    nmutdt <- list()
+    matrixdt <- list()
     for (ii in 1:length(chrs)) {
 
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
-        # load genome, count abundances & mutations
-        genome <- setNames(Biostrings::readDNAStringSet(genomePaths[ii]), chrs[ii])
-        abudt[[ii]] <- countSites(targetdb, chrs[ii], nflank, genome, pkmers)
-        nmutdt[[ii]] <- countMutations(mafdb, cohort, chrs[ii], nflank, genome, pkmers)
-
-        rm(genome); gc()
+        matrixdt[[ii]] <- chrom2matrix(chrs[ii], mafdb, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
 
     }
-    nmutdt <- data.table::rbindlist(nmutdt)
+    nrchr <- sapply(matrixdt, nrow)
+    matrixdt <- data.table::rbindlist(matrixdt)
+    matrixdt[, "seqnames" := rep(chrs, nrchr)]
 
     # drop mutation count entries with same ref and mut (no mutation)
     icenter <- nflank + 1
-    nmutdt[, "ref" := substr(kmer, icenter, icenter)]
-    nmutdt <- nmutdt[ref != mut]
+    matrixdt[, "ref" := substr(kmer, icenter, icenter)]
+    matrixdt <- matrixdt[ref != mut]
 
-    # remaining NA entries are non-found mutations, should be 0. Aggregate across chromosomes
-    nmutdt[is.na(n), "n" := 0L]
-    nmutdt <- nmutdt[, list("n" = sum(n)), by = c("kmer", "ref", "mut")]
+    # remaining NA entries are non-found mutations, should be 0
+    matrixdt[is.na(n), "n" := 0L]
     
     # get gender-adjusted abundances aggregated across chromosomes
-    abudt <- cbind(data.table::rbindlist(abudt), "chr" = rep(chrs, sapply(abudt, nrow)))
-    abudt[, "abundance.adj" := adjustByGender(abundance, chr, mafdb, cohort)]
-    abudt <- abudt[, list("abundance.adj" = sum(abundance.adj)), by = "kmer"]
+    matrixdt[, "abundance.adj" := adjustByGender(abundance, seqnames, mafdb, cohort)]
 
-    # add abundances to mutation counts, get mutation rate
-    nmutdt[abudt, "abundance.adj" := i.abundance.adj, on = "kmer"]
-    nmutdt[, "mutRate" := n / abundance.adj]
+    # aggregate across chromosomes, get mutation rate
+    matrixdt <- matrixdt[
+        ,
+        list("n" = sum(n), "abundance.adj" = sum(abundance.adj)),
+        by = c("ref", "kmer", "mut", names(fplabs))
+    ]
+    matrixdt[, "mutRate" := n / abundance.adj]
 
     # make mutational matrix object
     mutMatrix <- new_MutMatrix(
-        nmutdt,
+        matrixdt,
         mafdir,
         cohort,
         k,
         targetdir,
         genomedir,
-        chrs
+        chrs,
+        fdirs,
+        fplabs
     )
 
     return(mutMatrix)
