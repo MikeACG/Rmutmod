@@ -88,6 +88,26 @@ makePkmers <- function(k) {
 
 }
 
+#' @export
+mafLoad <- function(mafdb, .cols, .chr, cohort, .vartype, flaggedMuts) {
+
+    query <- mafdb %>% dplyr::filter(Cohort == cohort, Chromosome == .chr)
+
+    vartypeQuery <- query %>% dplyr::filter(Variant_Classification %in% .vartype)
+    if (.vartype[1] == "all") vartypeQuery <- query
+    if (.vartype[1] == "exonic") vartypeQuery <- query %>% dplyr::filter(!is.na(Variant_Classification))
+
+    excludeQuery <- vartypeQuery
+    if (flaggedMuts == "no") excludeQuery <- vartypeQuery %>% dplyr::filter(modelExclude == FALSE) 
+
+    mafdt <- excludeQuery %>%
+        dplyr::select(dplyr::all_of(.cols)) %>%
+        dplyr::collect()
+
+    return(mafdt)
+
+}
+
 # checks if central nucleotide of kmer is a purine
 #' @export
 isPuri <- function(kmers, nflank) {
@@ -182,6 +202,27 @@ addFeature <- function(tdt, featuredt, fname) {
 
 }
 
+addFeatures <- function(fdirs, ...) {
+
+    dtlist <- list(...)
+
+    jj <- 1L
+    while (jj <= length(fdirs)) {
+
+        featuredb <- arrow::open_dataset(fdirs[jj])
+        featuredt <- featuredb %>% 
+            dplyr::filter(seqnames == .chr) %>%
+            dplyr::collect()
+
+        lapply(dtlist, addFeature, featuredt, names(fdirs)[jj])
+
+        jj <- jj + 1
+        rm(featuredt, featuredb)
+
+    }
+
+}
+
 dtcount <- function(.dt, pvl, cname) {
 
     countdt <- do.call(
@@ -205,21 +246,7 @@ chrom2matrix <- function(.chr, mafdb, targetdb, genomePath, nflank, pkmers, fdir
     mutdt <- maf2mutdt(mafdb, cohort, .chr, nflank, genome)
     rm(genome)
 
-    jj <- 1L
-    while (jj <= length(fdirs)) {
-
-        featuredb <- arrow::open_dataset(fdirs[jj])
-        featuredt <- featuredb %>% 
-            dplyr::filter(seqnames == .chr) %>%
-            dplyr::collect()
-
-        addFeature(tkmerdt, featuredt, names(fdirs)[jj])
-        addFeature(mutdt, featuredt, names(fdirs)[jj])
-
-        jj <- jj + 1
-        rm(featuredt, featuredb)
-
-    }
+    addFeatures(fdirs, tkmerdt, mutdt)
 
     pAbu <- append(list("kmer" = pkmers), fplabs)
     abudt <- dtcount(tkmerdt, pAbu, "abundance")
@@ -392,7 +419,9 @@ mutpredict <- function (x, ...) {
 mutpredict.MutMatrix <- function(mutmatrix, newdata, ...) {
 
     modeldt <- modelGet(mutmatrix)
-    newdata[modeldt, "mutRate" := i.mutRate, on = c("kmer", "mut")]
+    fnames <- names(fdirsGet(mutmatrix))
+
+    newdata[modeldt, "mutRate" := i.mutRate, on = c("kmer", "mut", fnames)]
 
     return()
 
@@ -452,6 +481,52 @@ cohortGet <- function(x) {
 cohortGet.Rmutmod <- function(rmutmod) {
 
     return(rmutmod$cohort)
+
+}
+
+#' @export
+fdirsGet <- function(x) {
+
+    UseMethod("fdirsGet", x)
+
+}
+
+#' @export
+fdirsGet.Rmutmod <- function(rmutmod) {
+
+    return(rmutmod$fdirs)
+
+}
+
+
+#' @export
+mutdesign <- function (x, ...) {
+
+   UseMethod("mutdesign", x)
+
+}
+
+#' @export
+mutdesign.MutMatrix <- function(mutmatrix, rangedt, .chr, ...) {
+    
+    genomeDir <- genomedirGet(mutmatrix)
+    k <- kGet(mutmatrix)
+    fdirs <- fdirsGet(mutmatrix)
+
+    nflank <- (k - 1) / 2
+    genome <- setNames(Biostrings::readDNAStringSet(paste0(genomeDir, .chr, ".fasta")), .chr)
+    xdt <- ranges2kmerdt(rangedt$start, rangedt$end, .chr, nflank, genome)
+    rm(genome)
+
+    addFeatures(fdirs, xdt)
+
+    icenter <- nflank + 1
+    xdt[, "ref" := substr(kmer, icenter, icenter)]
+    pmuts <- list("C" = c("A", "G", "T"), "T" = c("A", "C", "G"))[xdt$ref]
+    xdt <- xdt[rep(1:nrow(xdt), each = 3L)]
+    xdt[, "mut" := unlist(pmuts, recursive = FALSE, use.names = FALSE)]
+
+    return(xdt)
 
 }
 
