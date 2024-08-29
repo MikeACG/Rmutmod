@@ -167,7 +167,7 @@ maf2mutdt <- function(mafdb, cohort, .chr, nflank, genome) {
     mafdt <- mafdt[modelExclude == FALSE]
 
     # if no mutations return 0 counts for all categories
-    mutdt <- data.table::data.table(position = integer(0), kmer = character(0), mut = character(0))
+    mutdt <- data.table::data.table(start = integer(0), kmer = character(0), mut = character(0))
     if (nrow(mafdt) == 0L) return(mutdt)
 
     mafRanges <- GenomicRanges::GRanges(
@@ -194,6 +194,13 @@ maf2mutdt <- function(mafdb, cohort, .chr, nflank, genome) {
 
 addFeature <- function(tdt, featuredt, fname) {
 
+    if (nrow(tdt) == 0) {
+
+        tdt[, (fname) := character(0L)]
+        return()
+
+    }
+
     tdt[
         featuredt,
         (fname) := i.feature,
@@ -202,7 +209,7 @@ addFeature <- function(tdt, featuredt, fname) {
 
 }
 
-addFeatures <- function(fdirs, ...) {
+addFeatures <- function(fdirs, .chr, ...) {
 
     dtlist <- list(...)
 
@@ -246,7 +253,7 @@ chrom2matrix <- function(.chr, mafdb, targetdb, genomePath, nflank, pkmers, fdir
     mutdt <- maf2mutdt(mafdb, cohort, .chr, nflank, genome)
     rm(genome)
 
-    addFeatures(fdirs, tkmerdt, mutdt)
+    addFeatures(fdirs, .chr, tkmerdt, mutdt)
 
     pAbu <- append(list("kmer" = pkmers), fplabs)
     abudt <- dtcount(tkmerdt, pAbu, "abundance")
@@ -485,6 +492,21 @@ cohortGet.Rmutmod <- function(rmutmod) {
 }
 
 #' @export
+chrsGet <- function(x) {
+
+    UseMethod("chrsGet", x)
+
+}
+
+#' @export
+chrsGet.Rmutmod <- function(rmutmod) {
+
+    return(rmutmod$chrs)
+
+}
+
+
+#' @export
 fdirsGet <- function(x) {
 
     UseMethod("fdirsGet", x)
@@ -518,7 +540,7 @@ mutdesign.MutMatrix <- function(mutmatrix, rangedt, .chr, ...) {
     xdt <- ranges2kmerdt(rangedt$start, rangedt$end, .chr, nflank, genome)
     rm(genome)
 
-    addFeatures(fdirs, xdt)
+    addFeatures(fdirs, .chr, xdt)
 
     icenter <- nflank + 1
     xdt[, "ref" := substr(kmer, icenter, icenter)]
