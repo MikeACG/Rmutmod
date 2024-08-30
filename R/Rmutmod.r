@@ -337,8 +337,9 @@ trainMutMat <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
     matrixdt[, "ref" := substr(kmer, icenter, icenter)]
     matrixdt <- matrixdt[ref != mut]
 
-    # remaining NA entries are non-found mutations, should be 0
+    # remaining NA entries are non-found mutations or abundances, should be 0
     matrixdt[is.na(n), "n" := 0L]
+    matrixdt[is.na(abundance), "abundance" := 0L]
     
     # get gender-adjusted abundances aggregated across chromosomes
     matrixdt[, "abundance.adj" := adjustByGender(abundance, seqnames, mafdb, cohort)]
