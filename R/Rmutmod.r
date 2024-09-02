@@ -91,7 +91,7 @@ makePkmers <- function(k) {
 #' @export
 mafLoad <- function(mafdb, .cols, .chr, cohort, .vartype, flaggedMuts) {
 
-    query <- mafdb %>% dplyr::filter(Cohort == cohort, Chromosome == .chr)
+    query <- mafdb %>% dplyr::filter(Cohort == cohort, Chromosome %in% .chr)
 
     vartypeQuery <- query %>% dplyr::filter(Variant_Classification %in% .vartype)
     if (.vartype[1] == "all") vartypeQuery <- query
