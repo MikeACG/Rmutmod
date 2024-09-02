@@ -89,13 +89,17 @@ makePkmers <- function(k) {
 }
 
 #' @export
-mafLoad <- function(mafdb, .cols, .chr, cohort, .vartype = "all", flaggedMuts = "yes", utx = "all") {
+mafLoad <- function(mafdb, .cols, .chr = "all", cohort = "all", .vartype = "all", flaggedMuts = "yes", utx = "all") {
 
-    query <- mafdb %>% dplyr::filter(Cohort == cohort, Chromosome %in% .chr)
+    chrQuery <- mafdb %>% dplyr::filter(Chromosome %in% .chr)
+    if (.chr[1] == "all") chrQuery <- mafdb
 
-    vartypeQuery <- query %>% dplyr::filter(Variant_Classification %in% .vartype)
-    if (.vartype[1] == "all") vartypeQuery <- query
-    if (.vartype[1] == "exonic") vartypeQuery <- query %>% dplyr::filter(!is.na(Variant_Classification))
+    cohortQuery <- chrQuery %>% dplyr::filter(Cohort %in% cohort)
+    if (cohort[1] == "all") cohortQuery <- chrQuery
+
+    vartypeQuery <- cohortQuery %>% dplyr::filter(Variant_Classification %in% .vartype)
+    if (.vartype[1] == "all") vartypeQuery <- cohortQuery
+    if (.vartype[1] == "exonic") vartypeQuery <- cohortQuery %>% dplyr::filter(!is.na(Variant_Classification))
 
     excludeQuery <- vartypeQuery
     if (flaggedMuts == "no") excludeQuery <- vartypeQuery %>% dplyr::filter(modelExclude == FALSE) 
