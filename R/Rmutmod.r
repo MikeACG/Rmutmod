@@ -89,7 +89,7 @@ makePkmers <- function(k) {
 }
 
 #' @export
-mafLoad <- function(mafdb, .cols, .chr, cohort, .vartype, flaggedMuts) {
+mafLoad <- function(mafdb, .cols, .chr, cohort, .vartype = "all", flaggedMuts = "yes", utx = "all") {
 
     query <- mafdb %>% dplyr::filter(Cohort == cohort, Chromosome %in% .chr)
 
@@ -100,7 +100,10 @@ mafLoad <- function(mafdb, .cols, .chr, cohort, .vartype, flaggedMuts) {
     excludeQuery <- vartypeQuery
     if (flaggedMuts == "no") excludeQuery <- vartypeQuery %>% dplyr::filter(modelExclude == FALSE) 
 
-    mafdt <- excludeQuery %>%
+    txQuery <- excludeQuery %>% dplyr::filter(Transcript_ID %in% utx)
+    if (utx[1] == "all") txQuery <- excludeQuery
+
+    mafdt <- txQuery %>%
         dplyr::select(dplyr::all_of(.cols)) %>%
         dplyr::collect()
 
