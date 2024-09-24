@@ -253,7 +253,7 @@ dtcount <- function(.dt, pvl, cname) {
 
 }
 
-chrom2matrix <- function(.chr, mafdb, targetdb, genomePath, nflank, pkmers, fdirs, fplabs) {
+chrom2matrix <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmers, fdirs, fplabs) {
 
     genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
     tkmerdt <- target2kmerdt(targetdb, .chr, nflank, genome)
@@ -332,7 +332,7 @@ trainMutMat <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
 
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
-        matrixdt[[ii]] <- chrom2matrix(chrs[ii], mafdb, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
+        matrixdt[[ii]] <- chrom2matrix(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
 
     }
     nrchr <- sapply(matrixdt, nrow)
@@ -528,11 +528,23 @@ fdirsGet.Rmutmod <- function(rmutmod) {
 
 }
 
-
 #' @export
 mutdesign <- function (x, ...) {
 
    UseMethod("mutdesign", x)
+
+}
+
+expandMuts <- function(sitedt, nflank) {
+
+    icenter <- nflank + 1
+    sitedt[, "ref" := substr(kmer, icenter, icenter)]
+    pmuts <- list("C" = c("A", "G", "T"), "T" = c("A", "C", "G"))[sitedt$ref]
+    xdt <- sitedt[rep(1:nrow(sitedt), each = 3L)]
+    xdt[, "mut" := unlist(pmuts, recursive = FALSE, use.names = FALSE)]
+
+    sitedt[, "ref" := NULL]
+    return(xdt)
 
 }
 
@@ -545,18 +557,135 @@ mutdesign.MutMatrix <- function(mutmatrix, rangedt, .chr, ...) {
 
     nflank <- (k - 1) / 2
     genome <- setNames(Biostrings::readDNAStringSet(paste0(genomeDir, .chr, ".fasta")), .chr)
-    xdt <- ranges2kmerdt(rangedt$start, rangedt$end, .chr, nflank, genome)
+    sitedt <- ranges2kmerdt(rangedt$start, rangedt$end, .chr, nflank, genome)
     rm(genome)
 
-    addFeatures(fdirs, .chr, xdt)
+    addFeatures(fdirs, .chr, sitedt)
 
-    icenter <- nflank + 1
-    xdt[, "ref" := substr(kmer, icenter, icenter)]
-    pmuts <- list("C" = c("A", "G", "T"), "T" = c("A", "C", "G"))[xdt$ref]
-    xdt <- xdt[rep(1:nrow(xdt), each = 3L)]
-    xdt[, "mut" := unlist(pmuts, recursive = FALSE, use.names = FALSE)]
+    xdt <- expandMuts(sitedt, nflank)
 
     return(xdt)
+
+}
+
+chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmers, fdirs, fplabs) {
+
+    # get kmers of target sites and mutations
+    genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
+    tkmerdt <- Rmutmod:::target2kmerdt(targetdb, .chr, nflank, genome)
+    mutdt <- Rmutmod:::maf2mutdt(mafdb, cohort, .chr, nflank, genome)
+    rm(genome)
+
+    # add the model features to each site in the target and get all possible mutations
+    tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
+    Rmutmod:::addFeatures(fdirs, .chr, tkmerdt)
+    xdt <- expandMuts(tkmerdt, nflank)
+    rm(tkmerdt)
+
+    # count observed mutations at each site
+    xdt[
+        mutdt[, list("nmut" = .N), by = c("start", "mut")],
+        "nmut" := i.nmut,
+        on = c("start", "mut")
+    ]
+    xdt[is.na(nmut), "nmut" := 0L]
+    rm(mutdt)
+
+    # format mutation category and leave only relevant columns
+    xdt[, ':=' ("start" = NULL, "rangeid" = NULL, "ref" = NULL)]
+    xdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+    xdt[, ':=' ("kmer" = NULL, "mut" = NULL)]
+
+    # specify levels of variables
+    catdt <- expandMuts(data.table::data.table(kmer = pkmers), nflank)
+    catdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+    fpl <- append(list("mutcat" = catdt$mutcat), fplabs)
+    for (jj in 1:length(fpl)) {
+
+        cname <- names(fpl)[jj]
+        if (length(fpl[[jj]]) > 0) xdt[, (cname) := factor(get(cname), fpl[[jj]])]
+
+    }
+
+    return(xdt)
+
+}
+
+dt2sdisk <- function(xdt, .formula, xfile, yfile) {
+
+    X <- MatrixModels::model.Matrix(.formula, xdt, sparse = TRUE)
+    sdt <- data.table::as.data.table(selectMethod("summary", "dgCMatrix")(X))
+    .ncol <- ncol(X)
+    rm(X)
+    data.table::fwrite(sdt, xfile, append = TRUE, nThread = 1, col.names = FALSE, sep = " ")
+    nval <- nrow(sdt)
+    rm(sdt)
+
+    # save the outcome variable to its own file and remove it from the table
+    ydt <- xdt[, .SD, .SDcols = "nmut"]
+    data.table::fwrite(ydt, yfile, append = TRUE, nThread = 1, col.names = FALSE)
+
+    # return matrix market header info
+    mminfo <- c("nrow" = nrow(xdt), "ncol" = .ncol, "nval" = nval)
+    return(mminfo)
+
+}
+
+#' @export
+trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula) {
+
+    pkmers <- makePkmers(k)
+    nflank <- (k - 1) / 2
+    mafdb <- arrow::open_dataset(mafdir)
+    targetdb <- arrow::open_dataset(targetdir)
+    genomePaths <- paste0(genomedir, chrs, ".fasta")
+    
+    xfile <- tempfile()
+    yfile <- tempfile()
+    mminfos <- list()
+    for (ii in 1:length(chrs)) {
+
+        cat(ii, "/", length(chrs), "...\n", sep = "")
+
+        xdt <- chrom2table(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
+        mminfos[[ii]] <- dt2sdisk(xdt, .formula, xfile, yfile)
+
+        rm(xdt)
+
+    }
+    
+    # handle the header of matrix market file
+    .nrow <- sum(sapply(mminfos, '[', 1))
+    .ncol <- mminfos[[1]][2]
+    .nval <- sum(sapply(mminfos, '[', 3))
+    h <- paste0(
+        "%%MatrixMarket matrix coordinate real general\n",
+        paste(.nrow, .ncol, .nval, sep = " ")
+    )
+    sfile <- tempfile()
+    .cmd <- paste0(
+        "echo '",
+        h,
+        "' > ",
+        sfile,
+        " && cat ",
+        xfile,
+        " >> ",
+        sfile
+    )
+    system(.cmd)
+
+    X <- Matrix::readMM(sfile)
+    y <- data.table::fread(yfile)[[1]]
+    glmMut <- glmnet::glmnet(
+        X,
+        y,
+        "poisson",
+        lambda = 0,
+        standardize = FALSE
+    )
+
+    return()
 
 }
 
