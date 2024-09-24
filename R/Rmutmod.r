@@ -572,13 +572,13 @@ chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmer
 
     # get kmers of target sites and mutations
     genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
-    tkmerdt <- Rmutmod:::target2kmerdt(targetdb, .chr, nflank, genome)
-    mutdt <- Rmutmod:::maf2mutdt(mafdb, cohort, .chr, nflank, genome)
+    tkmerdt <- target2kmerdt(targetdb, .chr, nflank, genome)
+    mutdt <- maf2mutdt(mafdb, cohort, .chr, nflank, genome)
     rm(genome)
 
     # add the model features to each site in the target and get all possible mutations
     tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
-    Rmutmod:::addFeatures(fdirs, .chr, tkmerdt)
+    addFeatures(fdirs, .chr, tkmerdt)
     xdt <- expandMuts(tkmerdt, nflank)
     rm(tkmerdt)
 
@@ -611,10 +611,11 @@ chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmer
 
 }
 
-dt2sdisk <- function(xdt, .formula, xfile, yfile) {
+dt2sdisk <- function(xdt, .formula, xfile, yfile, icum) {
 
     X <- MatrixModels::model.Matrix(.formula, xdt, sparse = TRUE)
     sdt <- data.table::as.data.table(selectMethod("summary", "dgCMatrix")(X))
+    sdt[, "i" := i + icum]
     .ncol <- ncol(X)
     rm(X)
     data.table::fwrite(sdt, xfile, append = TRUE, nThread = 1, col.names = FALSE, sep = " ")
@@ -643,19 +644,21 @@ trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
     xfile <- tempfile()
     yfile <- tempfile()
     mminfos <- list()
+    icum <- 0L
     for (ii in 1:length(chrs)) {
 
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
         xdt <- chrom2table(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
-        mminfos[[ii]] <- dt2sdisk(xdt, .formula, xfile, yfile)
+        mminfos[[ii]] <- dt2sdisk(xdt, .formula, xfile, yfile, icum)
+        icum <- icum + mminfos[[ii]][1]
 
         rm(xdt)
 
     }
     
     # handle the header of matrix market file
-    .nrow <- sum(sapply(mminfos, '[', 1))
+    .nrow <- icum
     .ncol <- mminfos[[1]][2]
     .nval <- sum(sapply(mminfos, '[', 3))
     h <- paste0(
