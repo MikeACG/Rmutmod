@@ -16,5 +16,9 @@ Imports:
     data.table,
     dplyr,
     GenomicRanges,
+    glmnet,
     gtools,
-    IRanges
+    IRanges,
+    Matrix,
+    MatrixModels,
+    stringi

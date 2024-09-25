@@ -1,4 +1,5 @@
 #' @import data.table
+#' @import glmnet
 #' @importFrom dplyr %>%
 
 new_MutMatrix <- function(
@@ -61,6 +62,39 @@ validate_MutMatrix <- function(mutMatrix) {
         if (!(all(is.character(.ocols)))) stop("model optional columns must be of type character")
 
     }
+
+}
+
+new_MutGLM <- function(
+    model = structure(list(), class = "glmnet"),
+    mafdir = character(1L),
+    cohort = character(1L),
+    k = integer(1L),
+    targetdir = character(1L),
+    genomedir = character(1L),
+    chrs = character(0L),
+    fdirs = setNames(character(0L), character(0L)),
+    fplabs = setNames(list(), character(0L)),
+    formula = as.formula(NULL)
+) {
+
+    mutGLM <- structure(
+        list(
+            model = model,
+            mafdir = mafdir,
+            cohort = cohort,
+            k = k,
+            targetdir = targetdir,
+            genomedir = genomedir,
+            chrs = chrs,
+            fdirs = fdirs,
+            fplabs = fplabs,
+            formula = formula
+        ),
+        class = c("Rmutmod", "MutGLM")
+    )
+
+    return(mutGLM)
 
 }
 
@@ -350,6 +384,7 @@ trainMutMat <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
     
     # get gender-adjusted abundances aggregated across chromosomes
     matrixdt[, "abundance.adj" := adjustByGender(abundance, seqnames, mafdb, cohort)]
+    #matrixdt[, "abundance.adj" := abundance]
 
     # aggregate across chromosomes, get mutation rate
     matrixdt <- matrixdt[
@@ -424,9 +459,28 @@ modelGet.MutMatrix <- function(mutmatrix) {
 }
 
 #' @export
+modelGet.MutGLM <- function(mutGLM) {
+
+    return(mutGLM$model)
+
+}
+
+#' @export
 mutpredict <- function (x, ...) {
 
    UseMethod("mutpredict", x)
+
+}
+
+#' @export
+mutpredict.MutMatrix <- function(mutmatrix, newdata, ...) {
+
+    modeldt <- modelGet(mutmatrix)
+    fnames <- names(fdirsGet(mutmatrix))
+
+    newdata[modeldt, "mutRate" := i.mutRate, on = c("kmer", "mut", fnames)]
+
+    return()
 
 }
 
@@ -529,9 +583,30 @@ fdirsGet.Rmutmod <- function(rmutmod) {
 }
 
 #' @export
-mutdesign <- function (x, ...) {
+fplabsGet <- function(x) {
 
-   UseMethod("mutdesign", x)
+    UseMethod("fplabsGet", x)
+
+}
+
+#' @export
+fplabsGet.Rmutmod <- function(rmutmod) {
+
+    return(rmutmod$fplabs)
+
+}
+
+#' @export
+formulaGet <- function(x) {
+
+    UseMethod("formulaGet", x)
+
+}
+
+#' @export
+formulaGet.MutGLM <- function(mutGLM) {
+
+    return(mutGLM$formula)
 
 }
 
@@ -549,11 +624,11 @@ expandMuts <- function(sitedt, nflank) {
 }
 
 #' @export
-mutdesign.MutMatrix <- function(mutmatrix, rangedt, .chr, ...) {
+mutdesign <- function(rmutmod, rangedt, .chr) {
     
-    genomeDir <- genomedirGet(mutmatrix)
-    k <- kGet(mutmatrix)
-    fdirs <- fdirsGet(mutmatrix)
+    genomeDir <- genomedirGet(rmutmod)
+    k <- kGet(rmutmod)
+    fdirs <- fdirsGet(rmutmod)
 
     nflank <- (k - 1) / 2
     genome <- setNames(Biostrings::readDNAStringSet(paste0(genomeDir, .chr, ".fasta")), .chr)
@@ -565,6 +640,26 @@ mutdesign.MutMatrix <- function(mutmatrix, rangedt, .chr, ...) {
     xdt <- expandMuts(sitedt, nflank)
 
     return(xdt)
+
+}
+
+formatFeatures <- function(xdt, pkmers, nflank, fplabs) {
+
+    # format mutation category
+    xdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+
+    # specify levels of variables
+    catdt <- expandMuts(data.table::data.table(kmer = pkmers), nflank)
+    catdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+    fpl <- append(list("mutcat" = catdt$mutcat), fplabs)
+    for (jj in 1:length(fpl)) {
+
+        cname <- names(fpl)[jj]
+        if (length(fpl[[jj]]) > 0) xdt[, (cname) := factor(get(cname), fpl[[jj]])]
+
+    }
+
+    return()
 
 }
 
@@ -591,21 +686,10 @@ chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmer
     xdt[is.na(nmut), "nmut" := 0L]
     rm(mutdt)
 
-    # format mutation category and leave only relevant columns
+    # format factor variables and leave only relevant columns
     xdt[, ':=' ("start" = NULL, "rangeid" = NULL, "ref" = NULL)]
-    xdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+    formatFeatures(xdt, pkmers, nflank, fplabs)
     xdt[, ':=' ("kmer" = NULL, "mut" = NULL)]
-
-    # specify levels of variables
-    catdt <- expandMuts(data.table::data.table(kmer = pkmers), nflank)
-    catdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
-    fpl <- append(list("mutcat" = catdt$mutcat), fplabs)
-    for (jj in 1:length(fpl)) {
-
-        cname <- names(fpl)[jj]
-        if (length(fpl[[jj]]) > 0) xdt[, (cname) := factor(get(cname), fpl[[jj]])]
-
-    }
 
     return(xdt)
 
@@ -678,15 +762,49 @@ trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
     )
     system(.cmd)
 
+    # fit model (this is very memory intensive for site-level models)
     X <- Matrix::readMM(sfile)
-    y <- data.table::fread(yfile)[[1]]
+    y <- data.table::fread(yfile, nThread = 1)[[1]]
     glmMut <- glmnet::glmnet(
         X,
         y,
         "poisson",
         lambda = 0,
-        standardize = FALSE
+        standardize = FALSE,
+        intercept = FALSE,
+        trace.it = 1
     )
+
+    mutGLM <- new_MutGLM(
+        model = glmMut,
+        mafdir = mafdir,
+        cohort = cohort,
+        k = k,
+        targetdir = targetdir,
+        genomedir = genomedir,
+        chrs = chrs,
+        fdirs = fdirs,
+        fplabs = fplabs,
+        formula = .formula
+    )
+
+    return(mutGLM)
+
+}
+
+#' @export
+mutpredict.MutGLM <- function(mutGLM, newdata, ...) {
+
+    model <- modelGet(mutGLM)
+    k <- kGet(mutGLM)
+    fplabs <- fplabsGet(mutGLM)
+    .formula <- as.formula(paste0("~", paste(labels(terms(formulaGet(mutGLM))), collapse = "+")))
+
+    pkmers <- makePkmers(k)
+    nflank <- floor(k / 2)
+    formatFeatures(newdata, pkmers, nflank, fplabs)
+    X <- MatrixModels::model.Matrix(.formula, newdata, sparse = TRUE)
+    newdata[, "mutRate" := predict(model, X, type = "response")]
 
     return()
 
