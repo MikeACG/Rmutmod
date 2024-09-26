@@ -31,10 +31,20 @@ ii <- 1
 .chr <- chrs[ii]
 pkmers <- Rmutmod:::makePkmers(k)
 fdirs <- c(
-    "f.methylation" = "/home/mike/projects/translateSelection/MC3/producedData/targetSitesFeatures/methylation/"
+    "f.methylation" = "~/projects/translateSelection/MC3/producedData/targetSitesFeatures/methylation/",
+    "f.tx" = "~/projects/translateSelection/MC3/producedData/targetSitesFeatures/tx/"
 )
 fplabs <- list(
-    "f.methylation" = character(0)
+    "f.methylation" = character(0),
+    "f.tx" = c("T", "U", "TU", "notAssignable")
 )
 genomePath <- "~/projects/GENCODE/release19/downloadedData/GRCh37.p13.genome/chr1.fasta"
-.formula <- as.formula("nmut ~ mutcat * f.methylation")
+.formula <- as.formula(
+    paste0(
+        "nmut ~ mutcat * (",
+        paste(names(fdirs), collapse = "+"),
+        ")"
+    )
+)
+
+rmutmod <- trainMutGLM(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula)
