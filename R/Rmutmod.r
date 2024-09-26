@@ -695,12 +695,14 @@ chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmer
 
 }
 
+#' @export
 vector2sdt <- function(x, jcum) {
 
     UseMethod("vector2sdt", x)
 
 }
 
+#' @export
 vector2sdt.factor <- function(x, jcum) {
 
     # initialize data table
@@ -720,6 +722,7 @@ vector2sdt.factor <- function(x, jcum) {
 
 }
 
+#' @export
 vector2sdt.default <- function(x, jcum) {
 
     # initialize data table
@@ -736,12 +739,14 @@ vector2sdt.default <- function(x, jcum) {
 
 }
 
+#' @export
 interaction2sdt <- function(x, jcum, mutcats) {
 
     UseMethod("interaction2sdt", x)
 
 }
 
+#' @export
 interaction2sdt.factor <- function(x, jcum, mutcats) {
 
     # initialize data table
@@ -772,6 +777,7 @@ interaction2sdt.factor <- function(x, jcum, mutcats) {
 
 }
 
+#' @export
 interaction2sdt.default <- function(x, jcum, mutcats) {
 
     # initialize data table
