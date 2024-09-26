@@ -876,7 +876,7 @@ trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
         "%%MatrixMarket matrix coordinate real general\n",
         paste(.nrow, .ncol, .nval, sep = " ")
     )
-    sfile <- tempfile()
+    sfile <- paste0(basename(tempfile()), "_rmutmod.tmp")
     .cmd <- paste0(
         "echo '",
         h,
