@@ -824,7 +824,7 @@ dt2sdt <- function(xdt, mutcatInteractions = TRUE) {
 
 }
 
-dt2sdisk <- function(xdt, .formula, xfile, yfile, icum) {
+dt2sdisk <- function(xdt, xfile, yfile, icum) {
 
     # save the outcome variable to its own file and remove it from the table
     ydt <- xdt[, .SD, .SDcols = "nmut"]
@@ -861,7 +861,7 @@ trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
         xdt <- chrom2table(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
-        mminfos[[ii]] <- dt2sdisk(xdt, .formula, xfile, yfile, icum)
+        mminfos[[ii]] <- dt2sdisk(xdt, xfile, yfile, icum)
         icum <- icum + mminfos[[ii]][1]
 
         rm(xdt)
@@ -898,7 +898,7 @@ trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
         "poisson",
         lambda = 0,
         standardize = FALSE,
-        intercept = FALSE,
+        intercept = TRUE,
         trace.it = 1
     )
 
