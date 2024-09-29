@@ -650,8 +650,8 @@ formatFeatures <- function(xdt, fplabs) {
     jj <- 1
     while (jj <= length(fplabs)) {
 
-        cname <- names(fpl)[jj]
-        if (length(fpl[[jj]]) > 0) xdt[, (cname) := factor(get(cname), fpl[[jj]])]
+        cname <- names(fplabs)[jj]
+        if (length(fplabs[[jj]]) > 0) xdt[, (cname) := factor(get(cname), fplabs[[jj]])]
         jj <- jj + 1
 
     }
