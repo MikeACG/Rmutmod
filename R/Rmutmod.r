@@ -65,8 +65,8 @@ validate_MutMatrix <- function(mutMatrix) {
 
 }
 
-new_MutGLM <- function(
-    model = structure(list(), class = "glmnet"),
+new_MutGLMs <- function(
+    models = list(),
     mafdir = character(1L),
     cohort = character(1L),
     k = integer(1L),
@@ -78,9 +78,9 @@ new_MutGLM <- function(
     formula = as.formula(NULL)
 ) {
 
-    mutGLM <- structure(
+    mutGLMs <- structure(
         list(
-            model = model,
+            models = models,
             mafdir = mafdir,
             cohort = cohort,
             k = k,
@@ -91,10 +91,10 @@ new_MutGLM <- function(
             fplabs = fplabs,
             formula = formula
         ),
-        class = c("Rmutmod", "MutGLM")
+        class = c("Rmutmod", "MutGLMs")
     )
 
-    return(mutGLM)
+    return(mutGLMs)
 
 }
 
@@ -459,9 +459,9 @@ modelGet.MutMatrix <- function(mutmatrix) {
 }
 
 #' @export
-modelGet.MutGLM <- function(mutGLM) {
+modelGet.MutGLMs <- function(mutGLMs) {
 
-    return(mutGLM$model)
+    return(mutGLMs$models)
 
 }
 
@@ -604,9 +604,9 @@ formulaGet <- function(x) {
 }
 
 #' @export
-formulaGet.MutGLM <- function(mutGLM) {
+formulaGet.MutGLMs <- function(mutGLMs) {
 
-    return(mutGLM$formula)
+    return(mutGLMs$formula)
 
 }
 
@@ -629,6 +629,7 @@ mutdesign <- function(rmutmod, rangedt, .chr) {
     genomeDir <- genomedirGet(rmutmod)
     k <- kGet(rmutmod)
     fdirs <- fdirsGet(rmutmod)
+    fplabs <- fplabsGet(rmutmod)
 
     nflank <- (k - 1) / 2
     genome <- setNames(Biostrings::readDNAStringSet(paste0(genomeDir, .chr, ".fasta")), .chr)
@@ -636,26 +637,22 @@ mutdesign <- function(rmutmod, rangedt, .chr) {
     rm(genome)
 
     addFeatures(fdirs, .chr, sitedt)
-
     xdt <- expandMuts(sitedt, nflank)
+    formatFeatures(xdt, fplabs)
 
     return(xdt)
 
 }
 
-formatFeatures <- function(xdt, pkmers, nflank, fplabs) {
-
-    # format mutation category
-    xdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+formatFeatures <- function(xdt, fplabs) {
 
     # specify levels of variables
-    catdt <- expandMuts(data.table::data.table(kmer = pkmers), nflank)
-    catdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
-    fpl <- append(list("mutcat" = catdt$mutcat), fplabs)
-    for (jj in 1:length(fpl)) {
+    jj <- 1
+    while (jj <= length(fplabs)) {
 
         cname <- names(fpl)[jj]
         if (length(fpl[[jj]]) > 0) xdt[, (cname) := factor(get(cname), fpl[[jj]])]
+        jj <- jj + 1
 
     }
 
@@ -684,173 +681,46 @@ chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmer
         on = c("start", "mut")
     ]
     xdt[is.na(nmut), "nmut" := 0L]
-    rm(mutdt)
-
-    # format factor variables and leave only relevant columns
-    xdt[, ':=' ("start" = NULL, "rangeid" = NULL, "ref" = NULL)]
-    formatFeatures(xdt, pkmers, nflank, fplabs)
-    xdt[, ':=' ("kmer" = NULL, "mut" = NULL)]
 
     return(xdt)
 
 }
 
-#' @export
-vector2sdt <- function(x, jcum) {
+xdt2disk <- function(xdt, tmpdir) {
 
-    UseMethod("vector2sdt", x)
+    xlist <- split(xdt, by = c("kmer", "mut"))
+    fnames <- paste0(tmpdir, gsub("[.]", "_", names(xlist)), ".tmp")
+    .append <- file.exists(fnames)
+    for (jj in 1:length(xlist)) {
 
-}
-
-#' @export
-vector2sdt.factor <- function(x, jcum) {
-
-    # initialize data table
-    .sdt <- data.table::data.table("i" = 1:length(x))
-
-    # add dummy column where a 1 should be placed for each observation
-    .sdt[, "j" := match(x, levels(x))]
-
-    # remove observations of last dummy column and offset column index
-    .sdt <- .sdt[j != length(levels(x))]
-    .sdt <- .sdt[, "j" := j + jcum]
-
-    # remaining indices should have a 1 as their values
-    .sdt[, "v" := 1L]
-
-    return(.sdt)
-
-}
-
-#' @export
-vector2sdt.default <- function(x, jcum) {
-
-    # initialize data table
-    .sdt <- data.table::data.table("i" = 1:length(x))
-
-    # add column where values will go offseted by previous columns
-    # also add the values themselves
-    .sdt[, ':=' ("j" = jcum + 1L, "v" = x)]
-
-    # remove observations with value of 0
-    .sdt <- .sdt[v != 0]
-
-    return(.sdt)
-
-}
-
-#' @export
-interaction2sdt <- function(x, jcum, mutcats) {
-
-    UseMethod("interaction2sdt", x)
-
-}
-
-#' @export
-interaction2sdt.factor <- function(x, jcum, mutcats) {
-
-    # initialize data table
-    .sdt <- data.table::data.table("i" = 1:length(x))
-
-    # add in what level each observation is for mutcats & remove those in last level
-    .sdt[, "jmutcat" := match(mutcats, levels(mutcats))]
-
-    # add in what level each observation is for the target feature & remove those in last level
-    .sdt[, "jx" := match(x, levels(x))]
-
-    # remove observations from last level of any of mutcats or x
-    .sdt <- .sdt[jmutcat != length(levels(mutcats)) & jx != length(levels(x))]
-
-    # jx - 1: "sets" of ncolsMutcats "behind" the set where the 1 should go
-    # the position inside the set is given by jmutcat
-    ncolsMutcats <- length(levels(mutcats)) - 1
-    .sdt[, "j" := jmutcat + (ncolsMutcats * (jx - 1L))]
-
-    # remove temporary columns and offset all column indices by the cumulative of columns
-    .sdt[, ':=' ("jmutcat" = NULL, "jx" = NULL)]
-    .sdt <- .sdt[, "j" := j + jcum]
-
-    # remaining indices should have a 1 as their values
-    .sdt[, "v" := 1L]
-
-    return(.sdt)
-
-}
-
-#' @export
-interaction2sdt.default <- function(x, jcum, mutcats) {
-
-    # initialize data table
-    .sdt <- data.table::data.table("i" = 1:length(x))
-
-    # add in what level each observation is for mutcats
-    .sdt[, "j" := match(mutcats, levels(mutcats))]
-
-    # add value of each observation for the target feature
-    .sdt[, "v" := x]
-
-    # remove observation if in last level of mutcats or a value of 0 for x
-    .sdt <- .sdt[j != length(levels(mutcats)) & v != 0]
-
-    # offset all column indices by the cumulative of columns
-    .sdt <- .sdt[, "j" := j + jcum]
-
-    return(.sdt)
-
-}
-
-dt2sdt <- function(xdt, mutcatInteractions = TRUE) {
-
-    # calculate the number of columns that each feature will create in the model matrix
-    nf <- sapply(xdt, function(x) if (is.factor(x)) length(levels(x)) - 1 else 1)
-    nfc <- head(cumsum(c(0, nf)), -1)
-
-    # get sparse representation
-    sdt <- mapply(vector2sdt, xdt, nfc, SIMPLIFY = FALSE)
-    sdt <- data.table::rbindlist(sdt)
-
-    # deal with interactions if neccessary
-    isdt <- data.table::data.table()
-    nfi <- 0
-    if (mutcatInteractions) {
-
-        mutcats <- xdt$mutcat
-        xdt[, "mutcat" := NULL]
-        nfi <- nf[names(xdt)] * (length(levels(mutcats)) - 1)
-        nfic <- head(cumsum(c(0, nfi)), -1) + sum(nf)
-
-        isdt <- mapply(interaction2sdt, xdt, nfic, MoreArgs = list(mutcats = mutcats), SIMPLIFY = FALSE)
-        isdt <- data.table::rbindlist(isdt)
+        .dt <- xlist[[jj]]
+        .dt[, ':=' ("start" = NULL, "rangeid" = NULL, "ref" = NULL, "mut" = NULL, "kmer" = NULL)]
+        data.table::fwrite(.dt, fnames[jj], append = .append[jj], nThread = 1)
 
     }
 
-    sdtFinal <- rbind(sdt, isdt)
-    .ncol <- sum(nfi) + sum(nf)
-    return(list("sdt" = sdtFinal, "ncol" = .ncol))
+    return()
 
 }
 
-dt2sdisk <- function(xdt, xfile, yfile, icum) {
+strip_glm <- function(m1) {
 
-    # save the outcome variable to its own file and remove it from the table
-    ydt <- xdt[, .SD, .SDcols = "nmut"]
-    data.table::fwrite(ydt, yfile, append = TRUE, nThread = 1, col.names = FALSE)
-    rm(ydt)
-    xdt[, "nmut" := NULL]
-
-    sdtList <- dt2sdt(xdt)
-    sdt <- sdtList$sdt
-    sdt[, "i" := i + icum]
-    data.table::fwrite(sdt, xfile, append = TRUE, nThread = 1, col.names = FALSE, sep = " ")
-
-    # return matrix market header info
-    mminfo <- c("nrow" = nrow(xdt), "ncol" = sdtList$ncol, "nval" = nrow(sdt))
-    return(mminfo)
+    m1$data <- NULL
+    m1$y <- NULL
+    m1$linear.predictors <- NULL
+    m1$weights <- NULL
+    m1$fitted.values <- NULL
+    m1$model <- NULL
+    m1$prior.weights <- NULL
+    m1$residuals <- NULL
+    m1$effects <- NULL
+    m1$qr$qr <- NULL
+    return(m1)
 
 }
 
 #' @export
-trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula) {
+trainMutGLMs <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula) {
 
     pkmers <- makePkmers(k)
     nflank <- (k - 1) / 2
@@ -858,58 +728,42 @@ trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
     targetdb <- arrow::open_dataset(targetdir)
     genomePaths <- paste0(genomedir, chrs, ".fasta")
     
-    xfile <- paste0(basename(tempfile()), "_rmutmod.tmp")
-    yfile <- paste0(basename(tempfile()), "_rmutmod.tmp")
-    mminfos <- list()
-    icum <- 0L
+    tmpdir <- paste0("./", basename(tempdir()), "/")
+    dir.create(tmpdir)
     for (ii in 1:length(chrs)) {
 
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
         xdt <- chrom2table(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
-        mminfos[[ii]] <- dt2sdisk(xdt, xfile, yfile, icum)
-        icum <- icum + mminfos[[ii]][1]
-
+        xdt2disk(xdt, tmpdir)
         rm(xdt)
 
     }
     
-    # handle the header of matrix market file
-    .nrow <- icum
-    .ncol <- mminfos[[1]][2]
-    .nval <- sum(sapply(mminfos, '[', 3))
-    h <- paste0(
-        "%%MatrixMarket matrix coordinate real general\n",
-        paste(.nrow, .ncol, .nval, sep = " ")
-    )
-    sfile <- paste0(basename(tempfile()), "_rmutmod.tmp")
-    .cmd <- paste0(
-        "echo '",
-        h,
-        "' > ",
-        sfile,
-        " && cat ",
-        xfile,
-        " >> ",
-        sfile
-    )
-    system(.cmd)
+    # fit models
+    fnames <- list.files(tmpdir, full.names = TRUE)
+    mnames <- gsub("[.]tmp", "", basename(fnames))
+    models <- list()
+    for (ii in 1:length(fnames)) {
 
-    # fit model (this is very memory intensive for site-level models)
-    X <- Matrix::readMM(sfile)
-    y <- data.table::fread(yfile, nThread = 1)[[1]]
-    glmMut <- glmnet::glmnet(
-        X,
-        y,
-        "poisson",
-        lambda = 0,
-        standardize = FALSE,
-        intercept = TRUE,
-        trace.it = 1
-    )
+        cat(ii, "/", length(fnames), "...\n", sep = "")
 
-    mutGLM <- new_MutGLM(
-        model = glmMut,
+        xdt <- data.table::fread(fnames[ii])
+        formatFeatures(xdt, fplabs)
+        models[[mnames[ii]]] <- strip_glm(
+            glm(
+                .formula,
+                "poisson",
+                xdt
+            )
+        )
+        rm(xdt)
+
+    }
+    unlink(tmpdir, recursive = TRUE)
+
+    mutGLMs <- new_MutGLMs(
+        models = models,
         mafdir = mafdir,
         cohort = cohort,
         k = k,
@@ -921,25 +775,38 @@ trainMutGLM <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
         formula = .formula
     )
 
-    return(mutGLM)
+    return(mutGLMs)
 
 }
 
 #' @export
-mutpredict.MutGLM <- function(mutGLM, newdata, ...) {
+mutpredict.MutGLMs <- function(rmutmod, newdata) {
 
-    model <- modelGet(mutGLM)
-    k <- kGet(mutGLM)
-    fplabs <- fplabsGet(mutGLM)
-    .formula <- as.formula(paste0("~", paste(labels(terms(formulaGet(mutGLM))), collapse = "+")))
+    models <- modelGet(rmutmod)
 
-    pkmers <- makePkmers(k)
-    nflank <- floor(k / 2)
-    formatFeatures(newdata, pkmers, nflank, fplabs)
-    X <- MatrixModels::model.Matrix(.formula, newdata, sparse = TRUE)
-    newdata[, "mutRate" := predict(model, X, type = "response")]
+    mdt <- data.table::data.table(
+        "kmer" = gsub("_.*", "", names(models)),
+        "mut" = gsub(".*_", "", names(models))
+    )
+    mdt[, "midx" := 1:nrow(mdt)]
+    newdata[mdt, "midx" := i.midx, on = c("kmer", "mut")]
+    setorder(newdata, "midx") # to gurantee result of next "by" operation is in the right order
+    newdata[
+        ,
+        "mutRate" := newdata[
+            ,
+            list(
+                "mutRate" = predict(
+                    models[[.BY$midx]],
+                    .SD,
+                    "response"
+                )
+            ),
+            by = "midx" 
+        ]$mutRate
+    ]
 
+    newdata[, "midx" := NULL]
     return()
 
 }
-
