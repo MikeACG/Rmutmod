@@ -31,10 +31,12 @@ ii <- 1
 .chr <- chrs[ii]
 pkmers <- Rmutmod:::makePkmers(k)
 fdirs <- c(
-    "f.methylation" = "~/projects/translateSelection/MC3/producedData/targetSitesFeatures/methylation/"
+    "f.methylation" = "~/projects/translateSelection/MC3/producedData/targetSitesFeatures/methylation/",
+    "f.tx" = "~/projects/translateSelection/MC3/producedData/targetSitesFeatures/tx/"
 )
 fplabs <- list(
-    "f.methylation" = character(0)
+    "f.methylation" = character(0),
+    "f.tx" = c("T", "TU", "U", "notAssignable")
 )
 genomePath <- "~/projects/GENCODE/release19/downloadedData/GRCh37.p13.genome/chr1.fasta"
 .formula <- as.formula(

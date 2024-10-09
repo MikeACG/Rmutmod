@@ -149,6 +149,19 @@ mafLoad <- function(mafdb, .cols, .chr = "all", cohort = "all", .vartype = "all"
 
 }
 
+#' @export
+filterTxCount <- function(mafdt, minmut) {
+
+    mafdt[
+        mafdt[, list("txmut" = .N), by = "Transcript_ID"],
+        "txmut" := i.txmut,
+        on = "Transcript_ID"
+    ]
+    
+    return(mafdt[txmut >= minmut])
+
+}
+
 # checks if central nucleotide of kmer is a purine
 #' @export
 isPuri <- function(kmers, nflank) {
@@ -158,6 +171,21 @@ isPuri <- function(kmers, nflank) {
     ispuri <- centers == "A" | centers == "G"
 
     return(ispuri)
+
+}
+
+#' @export
+pyriOrient <- function(.dt, .isPuri, icols, ocols) {
+
+    .dt[, (ocols) := .SD, .SDcols = icols]
+    .dt[
+        .isPuri,
+        (ocols) := lapply(
+            .SD,
+            function(x) as.character(Biostrings::reverseComplement(Biostrings::DNAStringSet(x)))
+        ),
+        .SDcols = icols
+    ]
 
 }
 
@@ -808,5 +836,31 @@ mutpredict.MutGLMs <- function(rmutmod, newdata) {
 
     newdata[, "midx" := NULL]
     return()
+
+}
+
+#' @export
+nparamGet <- function(x) {
+
+    UseMethod("nparamGet", x)
+
+}
+
+#' @export
+nparamGet.MutMatrix <- function(mutMatrix) {
+
+    modeldt <- modelGet(mutMatrix)
+    
+    return(nrow(modeldt) - 1)
+
+}
+
+#' @export
+nparamGet.MutGLMs <- function(mutGLMs) {
+
+    models <- modelGet(mutGLMs)
+    nparam <- sapply(models, function(m) length(coef(m)))
+
+    return(sum(nparam))
 
 }
