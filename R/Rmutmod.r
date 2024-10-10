@@ -875,3 +875,33 @@ pkmersGet.MutGLMs <- function(mutGLMs) {
 
 }
 
+#' @export
+pmutcatGet <- function(x) {
+
+    UseMethod("pmutcatGet", x)
+
+}
+
+#' @export
+pmutcatGet.MutMatrix <- function(mutMatrix) {
+
+    modeldt <- modelGet(mutMatrix)
+    catdt <- unique(modeldt[, .SD, .SDcols = c("kmer", "mut")], by = c("kmer", "mut"))
+
+    return(catdt)
+
+}
+
+#' @export
+pmutcatGet.MutGLMs <- function(mutGLMs) {
+
+    models <- modelGet(mutGLMs)
+    catdt <- setNames(
+        data.table::fread(text = names(models), sep = "_", header = FALSE),
+        c("kmer", "mut")
+    )
+
+    return(catdt)
+
+}
+
