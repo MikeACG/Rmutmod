@@ -859,8 +859,19 @@ nparamGet.MutMatrix <- function(mutMatrix) {
 nparamGet.MutGLMs <- function(mutGLMs) {
 
     models <- modelGet(mutGLMs)
-    nparam <- sapply(models, function(m) length(coef(m)))
+    nparam <- sapply(models, function(m) sum(!is.na(coef(m))))
 
     return(sum(nparam))
 
 }
+
+#' @export
+pkmersGet.MutGLMs <- function(mutGLMs) {
+
+    models <- modelGet(mutGLMs)
+    pkmers <- gsub("_.*", "", names(models))
+
+    return(pkmers)
+
+}
+
