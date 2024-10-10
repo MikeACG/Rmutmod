@@ -202,11 +202,6 @@ ranges2kmerdt <- function(.start, .end, .chr, nflank, genome) {
         kmer = as.character(genome[kmerRanges], use.names = FALSE),
         rangeid = rangeids
     )
-
-    kmerdt[
-        isPuri(kmer, nflank),
-        "kmer" := as.character(Biostrings::reverseComplement(Biostrings::DNAStringSet(kmer)), use.names = FALSE)
-    ]
     
     return(kmerdt)
 
@@ -221,6 +216,7 @@ target2kmerdt <- function(targetdb, .chr, nflank, genome) {
         dplyr::collect()
     
     tkmerdt <- ranges2kmerdt(targetdt$start, targetdt$end, .chr, nflank, genome)
+    pyriOrient(tkmerdt, isPuri(tkmerdt$kmer, nflank), "kmer",  "kmer")
 
     return(tkmerdt)
 
