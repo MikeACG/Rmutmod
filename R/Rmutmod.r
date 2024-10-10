@@ -216,7 +216,7 @@ target2kmerdt <- function(targetdb, .chr, nflank, genome) {
         dplyr::collect()
     
     tkmerdt <- ranges2kmerdt(targetdt$start, targetdt$end, .chr, nflank, genome)
-    pyriOrient(tkmerdt, isPuri(tkmerdt$kmer, nflank), "kmer",  "kmer")
+    pyriOrient(tkmerdt, isPuri(tkmerdt$kmer, nflank), "kmer", "kmer")
 
     return(tkmerdt)
 
@@ -658,6 +658,7 @@ mutdesign <- function(rmutmod, rangedt, .chr) {
     nflank <- (k - 1) / 2
     genome <- setNames(Biostrings::readDNAStringSet(paste0(genomeDir, .chr, ".fasta")), .chr)
     sitedt <- ranges2kmerdt(rangedt$start, rangedt$end, .chr, nflank, genome)
+    pyriOrient(sitedt, isPuri(sitedt$kmer, nflank), "kmer", "kmer")
     rm(genome)
 
     addFeatures(fdirs, .chr, sitedt)
