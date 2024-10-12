@@ -815,20 +815,15 @@ mutpredict.MutGLMs <- function(rmutmod, newdata) {
     )
     mdt[, "midx" := 1:nrow(mdt)]
     newdata[mdt, "midx" := i.midx, on = c("kmer", "mut")]
-    setorder(newdata, "midx") # to gurantee result of next "by" operation is in the right order
+    
     newdata[
         ,
-        "mutRate" := newdata[
-            ,
-            list(
-                "mutRate" = predict(
-                    models[[.BY$midx]],
-                    .SD,
-                    "response"
-                )
-            ),
-            by = "midx" 
-        ]$mutRate
+        "mutRate" := predict(
+            models[[.BY$midx]],
+            .SD,
+            "response"
+        ),
+        by = "midx" 
     ]
 
     newdata[, "midx" := NULL]
