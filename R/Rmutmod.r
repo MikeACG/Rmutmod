@@ -802,7 +802,7 @@ trainMutGLMs <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, f
         xdt <- data.table::fread(fnames[ii])
         formatFeatures(xdt, fplabs)
         lastWarn <- list(message = "none")
-        models[[mnames[ii]]] <- strip_glm(tryglm(xdt, .formula, "nb"))
+        models[[mnames[ii]]] <- strip_glm(tryglm(xdt, .formula))
         warns[ii] <- lastWarn$message
         rm(xdt)
 
@@ -917,6 +917,28 @@ pmutcatGet.MutGLMs <- function(mutGLMs) {
     )
 
     return(catdt)
+
+}
+
+#' @export
+rgammaScaler <- function(x, .n) {
+
+   UseMethod("rgammaScaler", x)
+
+}
+
+#' @export
+rgammaScaler.negbin <- function(m, .n) {
+
+    .theta <- m$theta
+   return(rgamma(.n, .theta) / .theta)
+
+}
+
+#' @export
+rgammaScaler.default <- function(m, .n) {
+
+   return(rep(1L, .n))
 
 }
 
