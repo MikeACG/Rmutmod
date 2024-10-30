@@ -511,18 +511,6 @@ mutpredict.MutMatrix <- function(mutmatrix, newdata, ...) {
 }
 
 #' @export
-mutpredict.MutMatrix <- function(mutmatrix, newdata, ...) {
-
-    modeldt <- modelGet(mutmatrix)
-    fnames <- names(fdirsGet(mutmatrix))
-
-    newdata[modeldt, "mutRate" := i.mutRate, on = c("kmer", "mut", fnames)]
-
-    return()
-
-}
-
-#' @export
 pkmersGet <- function(x) {
 
     UseMethod("pkmersGet", x)
@@ -730,34 +718,36 @@ xdt2disk <- function(xdt, tmpdir) {
 
 }
 
-tryglm <- function(xdt, .formula, mod) {
+tryglm <- function(xdt, .formula) {
 
-    tryCatch(
+    # first try to fit a negative binomial model
+    m <- tryCatch(
         {
-            if (mod == "nb") {
 
-                m <- withCallingHandlers(
-                    MASS::glm.nb(.formula, xdt, control = glm.control(maxit = 100)),
-                    warning = function(w) {
-                        lastWarn <<- w
-                        invokeRestart("muffleWarning")
-                    }
-                )
-                
-            } else {
+            withCallingHandlers(
+                MASS::glm.nb(.formula, xdt, control = glm.control(maxit = 100)),
+                warning = function(w) {
+                    lastWarn <<- w
+                    invokeRestart("muffleWarning")
+                }
+            )
 
-                m <- withCallingHandlers(
-                    glm(.formula, xdt, family = "poisson", control = glm.control(maxit = 100)),
-                    warning = function(w) {
-                        lastWarn <<- w
-                        invokeRestart("muffleWarning")
-                    }
-                )
-
-            }
-            
-        }
+        },
+        error = function(cnd) list()
     )
+
+    # if fit failed, try a poisson model
+    if (length(m) == 0) {
+
+        m <- withCallingHandlers(
+            glm(.formula, xdt, family = "poisson", control = glm.control(maxit = 100)),
+            warning = function(w) {
+                lastWarn <<- w
+                invokeRestart("muffleWarning")
+            }
+        )
+
+    }
 
     return(m)
 
