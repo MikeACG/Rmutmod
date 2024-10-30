@@ -75,7 +75,8 @@ new_MutGLMs <- function(
     chrs = character(0L),
     fdirs = setNames(character(0L), character(0L)),
     fplabs = setNames(list(), character(0L)),
-    formula = as.formula(NULL)
+    formula = as.formula(NULL),
+    warns = setNames(character(length(models)), character(length(models)))
 ) {
 
     mutGLMs <- structure(
@@ -89,7 +90,8 @@ new_MutGLMs <- function(
             chrs = chrs,
             fdirs = fdirs,
             fplabs = fplabs,
-            formula = formula
+            formula = formula,
+            warns = warns
         ),
         class = c("Rmutmod", "MutGLMs")
     )
@@ -179,7 +181,7 @@ pyriOrient <- function(.dt, .isPuri, icols, ocols) {
 
     .dt[, (ocols) := .SD, .SDcols = icols]
     .dt[
-        .isPuri,
+        .isPuri == TRUE,
         (ocols) := lapply(
             .SD,
             function(x) as.character(Biostrings::reverseComplement(Biostrings::DNAStringSet(x)))
@@ -728,6 +730,39 @@ xdt2disk <- function(xdt, tmpdir) {
 
 }
 
+tryglm <- function(xdt, .formula, mod) {
+
+    tryCatch(
+        {
+            if (mod == "nb") {
+
+                m <- withCallingHandlers(
+                    MASS::glm.nb(.formula, xdt, control = glm.control(maxit = 100)),
+                    warning = function(w) {
+                        lastWarn <<- w
+                        invokeRestart("muffleWarning")
+                    }
+                )
+                
+            } else {
+
+                m <- withCallingHandlers(
+                    glm(.formula, xdt, family = "poisson", control = glm.control(maxit = 100)),
+                    warning = function(w) {
+                        lastWarn <<- w
+                        invokeRestart("muffleWarning")
+                    }
+                )
+
+            }
+            
+        }
+    )
+
+    return(m)
+
+}
+
 strip_glm <- function(m1) {
 
     m1$data <- NULL
@@ -747,7 +782,7 @@ strip_glm <- function(m1) {
 #' @export
 trainMutGLMs <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula) {
 
-    pkmers <- makePkmers(k)
+    pkmers <- Rmutmod:::makePkmers(k)
     nflank <- (k - 1) / 2
     mafdb <- arrow::open_dataset(mafdir)
     targetdb <- arrow::open_dataset(targetdir)
@@ -769,19 +804,16 @@ trainMutGLMs <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, f
     fnames <- list.files(tmpdir, full.names = TRUE)
     mnames <- gsub("[.]tmp", "", basename(fnames))
     models <- list()
+    warns <- setNames(character(length(fnames)), mnames)
     for (ii in 1:length(fnames)) {
 
         cat(ii, "/", length(fnames), "...\n", sep = "")
 
         xdt <- data.table::fread(fnames[ii])
         formatFeatures(xdt, fplabs)
-        models[[mnames[ii]]] <- strip_glm(
-            glm(
-                .formula,
-                "poisson",
-                xdt
-            )
-        )
+        lastWarn <- list(message = "none")
+        models[[mnames[ii]]] <- strip_glm(tryglm(xdt, .formula, "nb"))
+        warns[ii] <- lastWarn$message
         rm(xdt)
 
     }
@@ -797,7 +829,8 @@ trainMutGLMs <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, f
         chrs = chrs,
         fdirs = fdirs,
         fplabs = fplabs,
-        formula = .formula
+        formula = .formula,
+        warns = warns
     )
 
     return(mutGLMs)

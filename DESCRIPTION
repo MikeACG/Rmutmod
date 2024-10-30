@@ -19,6 +19,7 @@ Imports:
     glmnet,
     gtools,
     IRanges,
+    MASS,
     Matrix,
     MatrixModels,
     stringi
