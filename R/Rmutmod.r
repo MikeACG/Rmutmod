@@ -2,118 +2,6 @@
 #' @import glmnet
 #' @importFrom dplyr %>%
 
-new_MutMatrix <- function(
-    modeldt = data.table::data.table(),
-    mafdir = character(1L),
-    cohort = character(1L),
-    k = integer(1L),
-    targetdir = character(1L),
-    genomedir = character(1L),
-    chrs = character(0L),
-    fdirs = setNames(character(0L), character(0L)),
-    fplabs = setNames(list(), character(0L))
-) {
-
-    mutMatrix <- structure(
-        list(
-            modeldt = modeldt,
-            mafdir = mafdir,
-            cohort = cohort,
-            k = k,
-            targetdir = targetdir,
-            genomedir = genomedir,
-            chrs = chrs,
-            fdirs = fdirs,
-            fplabs = fplabs
-        ),
-        class = c("Rmutmod", "MutMatrix")
-    )
-
-    return(mutMatrix)
-
-}
-
-validate_MutMatrix <- function(mutMatrix) {
-
-    if (!("data.table" %in% class(mutMatrix$modeldt))) stop("model must be a data.table")
-    .mcols <- c("kmer", "ref", "mut", "n", "abundance.adj", "mutRate")
-
-    # check mandatory character columns
-    if (!(.mcols[1:3] %in% names(mutMatrix$modeldt))) stop("missing columns in model")
-    if (!(is.character(mutMatrix$modeldt$kmer) & is.character(mutMatrix$modeldt$ref) & is.character(mutMatrix$modeldt$mut))) {
-
-        stop("model columns of wrong type")
-
-    }
-
-    # check mandatory number columns
-    if (!(.mcols[4:6] %in% names(mutMatrix$modeldt))) stop("missing columns in model")
-    if (!(is.integer(mutMatrix$modeldt$n) & is.numeric(mutMatrix$modeldt$abundance.adj) & is.numeric(mutMatrix$modeldt$mutRate))) {
-
-        stop("model columns of wrong type")
-
-    }
-
-    # check optional character feature columns
-    .ocols <- setdiff(names(mutMatrix$modeldt), .mcols)
-    if (length(.ocols) > 0) {
-
-        if (!(all(grepl("^f[.]", .ocols)))) stop("optional columns in model incorrectly formatted")
-        if (!(all(is.character(.ocols)))) stop("model optional columns must be of type character")
-
-    }
-
-}
-
-new_MutGLMs <- function(
-    models = list(),
-    mafdir = character(1L),
-    cohort = character(1L),
-    k = integer(1L),
-    targetdir = character(1L),
-    genomedir = character(1L),
-    chrs = character(0L),
-    fdirs = setNames(character(0L), character(0L)),
-    fplabs = setNames(list(), character(0L)),
-    formula = as.formula(NULL),
-    warns = setNames(character(length(models)), character(length(models)))
-) {
-
-    mutGLMs <- structure(
-        list(
-            models = models,
-            mafdir = mafdir,
-            cohort = cohort,
-            k = k,
-            targetdir = targetdir,
-            genomedir = genomedir,
-            chrs = chrs,
-            fdirs = fdirs,
-            fplabs = fplabs,
-            formula = formula,
-            warns = warns
-        ),
-        class = c("Rmutmod", "MutGLMs")
-    )
-
-    return(mutGLMs)
-
-}
-
-#' @export
-kGet <- function(x) {
-
-    UseMethod("kGet")
-
-}
-
-#' @export
-kGet.Rmutmod <- function(rmutmod) {
-
-    return(rmutmod$k)
-
-}
-
 makePkmers <- function(k) {
 
     kmersComp <- gtools::permutations(4, k, c("A", "C", "G", "T"), repeats.allowed = TRUE)
@@ -121,6 +9,15 @@ makePkmers <- function(k) {
     pkmers <- apply(kmersComp, 1, paste, collapse = "")
 
     return(pkmers[order(kmersComp[, ceiling(k / 2)])])
+
+}
+
+makePcats <- function(pkmers, nflank) {
+
+    catdt <- Rmutmod:::expandMuts(data.table::data.table("kmer" = pkmers), nflank)
+    catdt[, "mutcat" := paste(kmer, mut, sep = ">")]
+
+    return(catdt$mutcat)
 
 }
 
@@ -224,28 +121,22 @@ target2kmerdt <- function(targetdb, .chr, nflank, genome) {
 
 }
 
-maf2mutdt <- function(mafdb, cohort, .chr, nflank, genome) {
+maf2mutdt <- function(mafdb, cohort, .chr, nflank, genome, extraCols = c()) {
 
-    # load mutations and remove flagged records
-    mafdt <- mafdb %>% 
-        dplyr::filter(Cohort == cohort, Chromosome == .chr) %>%
-        dplyr::select(dplyr::all_of(c("Start_Position", "Tumor_Seq_Allele2", "modelExclude"))) %>%
-        dplyr::collect()
-    mafdt <- mafdt[modelExclude == FALSE]
+    # load mutations without flagged records
+    cols <- c(setNames(c("Start_Position", "Tumor_Seq_Allele2"), c("start", "mut")), extraCols)
+    mafdt <- mafLoad(mafdb, cols, .chr, cohort, flaggedMuts = FALSE)
 
     # if no mutations return 0 counts for all categories
-    mutdt <- data.table::data.table(start = integer(0), kmer = character(0), mut = character(0))
+    mutdt <- data.table::data.table(start = integer(0), kmer = character(0), mut = character(0), Cohort = character(0))
     if (nrow(mafdt) == 0L) return(mutdt)
 
     mafRanges <- GenomicRanges::GRanges(
         rep(.chr, nrow(mafdt)),
-        IRanges::IRanges(mafdt$Start_Position - nflank, mafdt$Start_Position + nflank)
+        IRanges::IRanges(mafdt$start - nflank, mafdt$start + nflank)
     )
-    mutdt <- data.table::data.table(
-        start = mafdt$Start_Position,
-        kmer = as.character(genome[mafRanges], use.names = FALSE),
-        mut = mafdt$Tumor_Seq_Allele2
-    )
+    mutdt <- mafdt[, .SD, .SDcols = names(cols)]
+    mutdt[, "kmer" := as.character(genome[mafRanges], use.names = FALSE)]
 
     mutdt[
         isPuri(kmer, nflank) == TRUE,
@@ -470,160 +361,6 @@ sumAbundance2 <- function(abundance, tumordt) {
 
 }
 
-#' @export
-modelGet <- function(x) {
-
-    UseMethod("modelGet", x)
-
-}
-
-#' @export
-modelGet.MutMatrix <- function(mutmatrix) {
-
-    return(mutmatrix$modeldt)
-
-}
-
-#' @export
-modelGet.MutGLMs <- function(mutGLMs) {
-
-    return(mutGLMs$models)
-
-}
-
-#' @export
-mutpredict <- function (x, ...) {
-
-   UseMethod("mutpredict", x)
-
-}
-
-#' @export
-mutpredict.MutMatrix <- function(mutmatrix, newdata, ...) {
-
-    modeldt <- modelGet(mutmatrix)
-    fnames <- names(fdirsGet(mutmatrix))
-
-    newdata[modeldt, "mutRate" := i.mutRate, on = c("kmer", "mut", fnames)]
-
-    return()
-
-}
-
-#' @export
-pkmersGet <- function(x) {
-
-    UseMethod("pkmersGet", x)
-
-}
-
-#' @export
-pkmersGet.MutMatrix <- function(mutmatrix) {
-
-    modeldt <- modelGet(mutmatrix)
-    return(unique(modeldt$kmer))
-
-}
-
-#' @export
-genomedirGet <- function(x) {
-
-    UseMethod("genomedirGet", x)
-
-}
-
-#' @export
-genomedirGet.Rmutmod <- function(rmutmod) {
-
-    return(rmutmod$genomedir)
-
-}
-
-#' @export
-mafdirGet <- function(x) {
-
-    UseMethod("mafdirGet", x)
-
-}
-
-#' @export
-mafdirGet.Rmutmod <- function(rmutmod) {
-
-    return(rmutmod$mafdir)
-
-}
-
-#' @export
-cohortGet <- function(x) {
-
-    UseMethod("cohortGet", x)
-
-}
-
-#' @export
-cohortGet.Rmutmod <- function(rmutmod) {
-
-    return(rmutmod$cohort)
-
-}
-
-#' @export
-chrsGet <- function(x) {
-
-    UseMethod("chrsGet", x)
-
-}
-
-#' @export
-chrsGet.Rmutmod <- function(rmutmod) {
-
-    return(rmutmod$chrs)
-
-}
-
-
-#' @export
-fdirsGet <- function(x) {
-
-    UseMethod("fdirsGet", x)
-
-}
-
-#' @export
-fdirsGet.Rmutmod <- function(rmutmod) {
-
-    return(rmutmod$fdirs)
-
-}
-
-#' @export
-fplabsGet <- function(x) {
-
-    UseMethod("fplabsGet", x)
-
-}
-
-#' @export
-fplabsGet.Rmutmod <- function(rmutmod) {
-
-    return(rmutmod$fplabs)
-
-}
-
-#' @export
-formulaGet <- function(x) {
-
-    UseMethod("formulaGet", x)
-
-}
-
-#' @export
-formulaGet.MutGLMs <- function(mutGLMs) {
-
-    return(mutGLMs$formula)
-
-}
-
 expandMuts <- function(sitedt, nflank) {
 
     icenter <- nflank + 1
@@ -666,7 +403,7 @@ formatFeatures <- function(xdt, fplabs) {
     while (jj <= length(fplabs)) {
 
         cname <- names(fplabs)[jj]
-        if (length(fplabs[[jj]]) > 0) xdt[, (cname) := factor(get(cname), fplabs[[jj]])]
+        if (length(fplabs[[jj]]) > 1) xdt[, (cname) := factor(as.character(get(cname)), fplabs[[jj]])]
         jj <- jj + 1
 
     }
@@ -701,6 +438,182 @@ chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmer
 
 }
 
+target2pmuts <- function(.chr, targetdb, genome, nflank, fdirs) {
+
+    # get kmers of target sites
+    tkmerdt <- Rmutmod:::target2kmerdt(targetdb, .chr, nflank, genome)
+
+    # add the model features to each site in the target and get all possible mutations
+    tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
+    Rmutmod:::addFeatures(fdirs, .chr, tkmerdt)
+    xdt <- Rmutmod:::expandMuts(tkmerdt, nflank)
+    
+    return(xdt)
+
+}
+
+chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs, fplabs) {
+
+    # get kmers of target sites and mutations
+    genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
+    tkmerdt <- Rmutmod:::target2kmerdt(targetdb, .chr, nflank, genome)
+    mutdt <- maf2mutdt(mafdb, "all", .chr, nflank, genome, setNames("Cohort", "cohort"))
+    rm(genome)
+
+    # add the model features to each site in the target and get all possible mutations
+    tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
+    Rmutmod:::addFeatures(fdirs, .chr, tkmerdt, mutdt)
+    xdt <- Rmutmod:::expandMuts(tkmerdt, nflank)
+    rm(tkmerdt)
+
+    # aggregate possible mutations by feature categories and type
+    ccols <- c("kmer", "mut", names(fplabs))
+    cxdt <- xdt[, list("nchance" = .N), by = ccols]
+    rm(xdt)
+
+    # aggregate observed mutations by feature categories and type
+    mccols <- c(ccols, "cohort")
+    cmutdt <- mutdt[, list("nmut" = .N), by = mccols]
+    rm(mutdt)
+
+    # consider possible mutations in each cohort
+    ucohorts <- unique(cmutdt$cohort)
+    ccxdt <- cxdt[rep(1:nrow(cxdt), each = length(ucohorts))]
+    ccxdt[, "cohort" := rep(ucohorts, nrow(cxdt))]
+    rm(cxdt)
+
+    # note number of observed mutations in the possible mutations table
+    ccxdt[
+        cmutdt,
+        "nmut" := i.nmut,
+        on = mccols
+    ]
+    ccxdt[is.na(nmut), "nmut" := 0L]
+
+    return(ccxdt)
+
+}
+
+annotateCohortCount <- function(xdt, mafdb) {
+
+    .cols <- c("cohort" = "Cohort", "tumor" = "Tumor_Sample_Barcode")
+    tumorTab <- mafdb %>%
+        dplyr::select(dplyr::all_of(.cols)) %>%
+        dplyr::distinct() %>%
+        dplyr::collect()
+    
+    xdt[
+        data.table::data.table(tumorTab)[, list("ntumor" = .N), by = "cohort"],
+        "ntumor" := i.ntumor,
+        on = "cohort"
+    ]
+}
+
+#' @export
+trainMutCPR2 <- function(mafdir, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula) {
+
+    pkmers <- Rmutmod:::makePkmers(k)
+    nflank <- (k - 1) / 2
+    mafdb <- arrow::open_dataset(mafdir)
+    targetdb <- arrow::open_dataset(targetdir)
+    genomePaths <- paste0(genomedir, chrs, ".fasta")
+    
+    ccxdt <- list()
+    for (ii in 1:length(chrs)) {
+
+        cat(ii, "/", length(chrs), "...\n", sep = "")
+
+        ccxdt[[ii]] <- chrom2mafDesign(chrs[ii], mafdb, targetdb, genomePaths[ii], nflank, fdirs, fplabs)
+
+    }
+
+    # aggregate data by design features
+    ccxdt <- data.table::rbindlist(ccxdt)
+    ccxdt <- ccxdt[, list("nmut" = sum(nmut), "nchance" = sum(nchance)), by = c(names(fplabs), "kmer", "mut", "cohort")] # this does nothing when 1 of the variables doesnt repeat across chromosomes (frequent with random effects)
+
+    # annotate with the number of samples per cohort and adjust abundances by hem
+    annotateCohortCount(ccxdt, mafdb)
+    ccxdt[, "nchanceAdj" := nchance / 1000 * ntumor] # mutation chances per thousand chances
+    ccxdt[, "logchance" := log(nchanceAdj)]
+
+    # format the variables correctly
+    ccxdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+    ccxdt[, ':=' ("kmer" = NULL, "mut" = NULL, "nchance" = NULL, "nchanceAdj" = NULL, "ntumor" = NULL)]
+    fplabs$binGenome10mbClust <- unique(ccxdt$binGenome10mbClust)
+    Rmutmod:::formatFeatures(
+        ccxdt,
+        append(
+            fplabs,
+            list(
+                "mutcat" = makePcats(pkmers, nflank),
+                "cohort" = unique(ccxdt$cohort)
+            )
+        )
+    )
+
+    .disp <- as.formula("~ 1")
+    #.cond <- as.formula("nmut ~ mutcat + nucLBBC_5bins + rxMCF7 + meNEU_5bins + tx + offset(logchance)")
+    #.cond <- as.formula("nmut ~ (mutcat * cohort) + tx + rxMCF7 + meNEU_5bins + nucLBBC_5bins + offset(logchance)")
+    .cond <- as.formula("nmut ~ (mutcat * cohort) + (mutcat | binGenome10mbClust) + tx + rxMCF7 + meNEU_5bins + nucLBBC_5bins + offset(logchance)")
+    model <- glmmTMB::glmmTMB(
+        .cond,
+        ccxdt,
+        glmmTMB::nbinom2(),
+        dispformula = .disp,
+        sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = TRUE),
+        control = glmmTMB::glmmTMBControl("optCtrl" = list(iter.max = 10000, eval.max = 10000)),
+        verbose = TRUE
+    )
+
+    mutGLMMTMB <- new_MutGLMMTMB(
+        model = model,
+        mafdir = mafdir,
+        cohort = cohort,
+        k = k,
+        targetdir = targetdir,
+        genomedir = genomedir,
+        chrs = chrs,
+        fdirs = fdirs,
+        fplabs = fplabs,
+        formula = .formula
+    )
+
+    return(mutGLMMTMB)
+
+}
+
+
+chrom2ctable <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmers, fdirs, fplabs) {
+
+    # get kmers of target sites and mutations
+    genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
+    tkmerdt <- Rmutmod:::target2kmerdt(targetdb, .chr, nflank, genome)
+    mutdt <- maf2mutdt(mafdb, cohort, .chr, nflank, genome)
+    rm(genome)
+
+    # add the model features to each site in the target and get all possible mutations
+    tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
+    Rmutmod:::addFeatures(fdirs, .chr, tkmerdt, mutdt)
+    xdt <- Rmutmod:::expandMuts(tkmerdt, nflank)
+    rm(tkmerdt)
+
+    # aggregate mutations by combinations of features and combine with cancer type
+    ccols <- c("kmer", "mut", names(fplabs))
+    cxdt <- xdt[, list("nchance" = .N), by = ccols]
+    rm(xdt)
+
+    # count observed mutations at each site
+    cxdt[
+        mutdt[, list("nmut" = .N), by = ccols],
+        "nmut" := i.nmut,
+        on = ccols
+    ]
+    cxdt[is.na(nmut), "nmut" := 0L]
+
+    return(cxdt)
+
+}
+
 xdt2disk <- function(xdt, tmpdir) {
 
     xlist <- split(xdt, by = c("kmer", "mut"))
@@ -718,14 +631,14 @@ xdt2disk <- function(xdt, tmpdir) {
 
 }
 
-tryglm <- function(xdt, .formula) {
+tryglm <- function(xdt, .formula, .trace = FALSE) {
 
     # first try to fit a negative binomial model
     m <- tryCatch(
         {
 
             withCallingHandlers(
-                MASS::glm.nb(.formula, xdt, control = glm.control(maxit = 100)),
+                MASS::glm.nb(.formula, xdt, control = glm.control(maxit = 100, trace = .trace)),
                 warning = function(w) {
                     lastWarn <<- w
                     invokeRestart("muffleWarning")
@@ -740,7 +653,7 @@ tryglm <- function(xdt, .formula) {
     if (length(m) == 0) {
 
         m <- withCallingHandlers(
-            glm(.formula, xdt, family = "poisson", control = glm.control(maxit = 100)),
+            glm(.formula, xdt, family = "poisson", control = glm.control(maxit = 100, trace = .trace)),
             warning = function(w) {
                 lastWarn <<- w
                 invokeRestart("muffleWarning")
@@ -784,8 +697,8 @@ trainMutGLMs <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, f
 
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
-        xdt <- chrom2table(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
-        xdt2disk(xdt, tmpdir)
+        xdt <- Rmutmod:::chrom2table(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
+        Rmutmod:::xdt2disk(xdt, tmpdir)
         rm(xdt)
 
     }
@@ -828,7 +741,7 @@ trainMutGLMs <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, f
 }
 
 #' @export
-mutpredict.MutGLMs <- function(rmutmod, newdata) {
+mutpredict.MutGLMs <- function(rmutmod, newdata, ...) {
 
     models <- modelGet(rmutmod)
 
@@ -855,72 +768,6 @@ mutpredict.MutGLMs <- function(rmutmod, newdata) {
 }
 
 #' @export
-nparamGet <- function(x) {
-
-    UseMethod("nparamGet", x)
-
-}
-
-#' @export
-nparamGet.MutMatrix <- function(mutMatrix) {
-
-    modeldt <- modelGet(mutMatrix)
-    
-    return(nrow(modeldt) - 1)
-
-}
-
-#' @export
-nparamGet.MutGLMs <- function(mutGLMs) {
-
-    models <- modelGet(mutGLMs)
-    nparam <- sapply(models, function(m) sum(!is.na(coef(m))))
-
-    return(sum(nparam))
-
-}
-
-#' @export
-pkmersGet.MutGLMs <- function(mutGLMs) {
-
-    models <- modelGet(mutGLMs)
-    pkmers <- gsub("_.*", "", names(models))
-
-    return(pkmers)
-
-}
-
-#' @export
-pmutcatGet <- function(x) {
-
-    UseMethod("pmutcatGet", x)
-
-}
-
-#' @export
-pmutcatGet.MutMatrix <- function(mutMatrix) {
-
-    modeldt <- modelGet(mutMatrix)
-    catdt <- unique(modeldt[, .SD, .SDcols = c("kmer", "mut")], by = c("kmer", "mut"))
-
-    return(catdt)
-
-}
-
-#' @export
-pmutcatGet.MutGLMs <- function(mutGLMs) {
-
-    models <- modelGet(mutGLMs)
-    catdt <- setNames(
-        data.table::fread(text = names(models), sep = "_", header = FALSE),
-        c("kmer", "mut")
-    )
-
-    return(catdt)
-
-}
-
-#' @export
 rgammaScaler <- function(x, .n) {
 
    UseMethod("rgammaScaler", x)
@@ -942,3 +789,159 @@ rgammaScaler.default <- function(m, .n) {
 
 }
 
+#' @export
+trainMutCPR <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula) {
+
+    pkmers <- Rmutmod:::makePkmers(k)
+    nflank <- (k - 1) / 2
+    mafdb <- arrow::open_dataset(mafdir)
+    targetdb <- arrow::open_dataset(targetdir)
+    genomePaths <- paste0(genomedir, chrs, ".fasta")
+    
+    cxdt <- list()
+    for (ii in 1:length(chrs)) {
+
+        cat(ii, "/", length(chrs), "...\n", sep = "")
+
+        cxdt[[ii]] <- chrom2ctable(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
+
+    }
+    cxdt <- data.table::rbindlist(cxdt)[, list("nmut" = sum(nmut), "nchance" = sum(nchance)), by = c(names(fplabs), "kmer", "mut")]
+    cxdt[, "logchance" := log(nchance)]
+
+    # format the variables correctly
+    cxdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+    cxdt[, ':=' ("kmer" = NULL, "mut" = NULL, "nchance" = NULL)]
+    Rmutmod:::formatFeatures(cxdt, append(fplabs, list("mutcat" = makePcats(pkmers, nflank))))
+    #contrasts(cxdt$mutcat) <- memisc::contr.sum(catdt$mutcat)
+
+    .disp <- as.formula("~ mutcat + offset(logchance)")
+    #.cond <- as.formula("nmut ~ mutcat + nucLBBC_5bins + rxMCF7 + meNEU_5bins + tx + offset(logchance)")
+    .cond <- as.formula("nmut ~ mutcat + offset(logchance)")
+    model <- glmmTMB::glmmTMB(
+        .cond,
+        cxdt,
+        glmmTMB::nbinom2(),
+        dispformula = .disp,
+        sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = TRUE),
+        control = glmmTMB::glmmTMBControl("optCtrl" = list(iter.max = 10000, eval.max = 10000)),
+        verbose = TRUE
+    )
+
+    mutGLMMTMB <- new_MutGLMMTMB(
+        model = model,
+        mafdir = mafdir,
+        cohort = cohort,
+        k = k,
+        targetdir = targetdir,
+        genomedir = genomedir,
+        chrs = chrs,
+        fdirs = fdirs,
+        fplabs = fplabs,
+        formula = .formula
+    )
+
+    return(mutGLMMTMB)
+
+}
+
+#' @export
+mutpredict.MutGLMMTMB <- function(rmutmod, newdata, ...) {
+
+    model <- modelGet(rmutmod)
+    blist <- lapply(glmmTMB::fixef(model), function(b) ifelse(is.na(b), 0.0, b))
+    .formula <- as.formula(paste("~", as.character(formulaGet(rmutmod))[3]))
+
+    catMissing <- !("mutcat" %in% names(newdata))
+    if (catMissing) newdata[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+    offsetMissing <- !("logchance" %in% names(newdata))
+    if (offsetMissing) newdata[, "logchance" := 0L]
+
+    k <- kGet(rmutmod)
+    fplabs <- fplabsGet(rmutmod)
+    formatFeatures(newdata, append(fplabs, list("mutcat" = makePcats(Rmutmod:::makePkmers(k), floor(k / 2)))))
+    X <- Matrix::sparse.model.matrix(.formula, newdata)
+    newdata[, "mutRate" := model$modelInfo$family$linkinv((X %*% blist$cond)[, 1] + logchance)]
+
+    if (catMissing) newdata[, "mutcat" := NULL]
+    if (offsetMissing) newdata[, "logchance" := NULL]
+    return()
+
+}
+
+#' @export
+trainMutLRGLM <- function(mafdir, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula, regionVar) {
+
+    pkmers <- Rmutmod:::makePkmers(k)
+    nflank <- (k - 1) / 2
+    mafdb <- arrow::open_dataset(mafdir)
+    targetdb <- arrow::open_dataset(targetdir)
+    genomePaths <- paste0(genomedir, chrs, ".fasta")
+    
+    pars <- list()
+    for (ii in 1:length(chrs)) {
+
+        cat(ii, "/", length(chrs), "...\n", sep = "")
+
+        ccxdt <- chrom2mafDesign(chrs[ii], mafdb, targetdb, genomePaths[ii], nflank, fdirs, fplabs)
+
+        # annotate with the number of samples per cohort and adjust abundances by them
+        annotateCohortCount(ccxdt, mafdb) # getting the source dataframe of sample counts can be done beforehand, not everytime
+        ccxdt[, "nchanceAdj" := nchance / 1000 * ntumor] # mutation chances per thousand chances
+        ccxdt[, "logchance" := log(nchanceAdj)]
+
+        # format the variables correctly
+        ccxdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+        ccxdt[, ':=' ("kmer" = NULL, "mut" = NULL, "nchance" = NULL, "nchanceAdj" = NULL, "ntumor" = NULL)]
+        formatFeatures(
+            ccxdt,
+            append(
+                fplabs,
+                list(
+                    "mutcat" = makePcats(pkmers, nflank),
+                    "cohort" = unique(ccxdt$cohort)
+                )
+            )
+        )
+
+        # fit parameters
+        ccxdt <- split(ccxdt, ccxdt[[regionVar]])
+        pars[[ii]] <- lapply(ccxdt, GLMMTMBpars, .cond, .fam)
+
+    }
+
+    
+    #contrasts(cxdt$mutcat) <- memisc::contr.sum(catdt$mutcat)
+
+    .disp <- as.formula("~ mutcat + offset(logchance)")
+    #.cond <- as.formula("nmut ~ mutcat + nucLBBC_5bins + rxMCF7 + meNEU_5bins + tx + offset(logchance)")
+
+    mutGLMMTMB <- new_MutGLMMTMB(
+        model = model,
+        mafdir = mafdir,
+        cohort = cohort,
+        k = k,
+        targetdir = targetdir,
+        genomedir = genomedir,
+        chrs = chrs,
+        fdirs = fdirs,
+        fplabs = fplabs,
+        formula = .formula
+    )
+
+    return(mutGLMMTMB)
+
+}
+
+GLMMTMBpars <- function(.xdt, .cond, .fam) {
+
+    model <- glmmTMB::glmmTMB(
+        .cond,
+        .xdt,
+        .fam,
+        sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = FALSE),
+        control = glmmTMB::glmmTMBControl("optCtrl" = list(iter.max = 10000, eval.max = 10000)),
+        verbose = TRUE
+    )
+
+}
