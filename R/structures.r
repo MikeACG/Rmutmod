@@ -1,6 +1,7 @@
 new_MutMatrix <- function(
     modeldt = data.table::data.table(),
     mafdir = character(1L),
+    cohort = character(0L),
     k = integer(1L),
     targetdir = character(1L),
     genomedir = character(1L),
@@ -13,6 +14,7 @@ new_MutMatrix <- function(
         list(
             modeldt = modeldt,
             mafdir = mafdir,
+            ochort = cohort,
             k = k,
             targetdir = targetdir,
             genomedir = genomedir,
