@@ -1,5 +1,4 @@
 #' @import data.table
-#' @import glmnet
 #' @importFrom dplyr %>%
 
 makePkmers <- function(k) {
@@ -269,7 +268,7 @@ adjustByGender <- function(abundance, .chrs, mafdb, cohort) {
     return(adjdt$abundance.adj)
 
 }
-
+ 
 #' @export
 trainMutMat <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs) {
 
@@ -396,22 +395,6 @@ mutdesign <- function(rmutmod, rangedt, .chr) {
 
 }
 
-formatFeatures <- function(xdt, fplabs) {
-
-    # specify levels of variables
-    jj <- 1
-    while (jj <= length(fplabs)) {
-
-        cname <- names(fplabs)[jj]
-        if (length(fplabs[[jj]]) > 1) xdt[, (cname) := factor(as.character(get(cname)), fplabs[[jj]])]
-        jj <- jj + 1
-
-    }
-
-    return()
-
-}
-
 chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmers, fdirs, fplabs) {
 
     # get kmers of target sites and mutations
@@ -452,7 +435,7 @@ target2pmuts <- function(.chr, targetdb, genome, nflank, fdirs) {
 
 }
 
-chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs, fplabs) {
+chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs) {
 
     # get kmers of target sites and mutations
     genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
@@ -467,7 +450,7 @@ chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs, fp
     rm(tkmerdt)
 
     # aggregate possible mutations by feature categories and type
-    ccols <- c("kmer", "mut", names(fplabs))
+    ccols <- c("kmer", "mut", names(fdirs))
     cxdt <- xdt[, list("nchance" = .N), by = ccols]
     rm(xdt)
 
@@ -494,20 +477,6 @@ chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs, fp
 
 }
 
-annotateCohortCount <- function(xdt, mafdb) {
-
-    .cols <- c("cohort" = "Cohort", "tumor" = "Tumor_Sample_Barcode")
-    tumorTab <- mafdb %>%
-        dplyr::select(dplyr::all_of(.cols)) %>%
-        dplyr::distinct() %>%
-        dplyr::collect()
-    
-    xdt[
-        data.table::data.table(tumorTab)[, list("ntumor" = .N), by = "cohort"],
-        "ntumor" := i.ntumor,
-        on = "cohort"
-    ]
-}
 
 #' @export
 trainMutCPR2 <- function(mafdir, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula) {

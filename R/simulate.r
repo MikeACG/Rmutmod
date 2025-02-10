@@ -66,3 +66,8 @@ mutFrame <- function(rangedt, k, genomeDir, fdirs, fplabs, .chr) {
 
 }
 
+# these are useful accesses for glmmTMB objects
+# this gets the fixed effects formula
+#formula(model, fixed.only = TRUE)
+# this gets strings that you can parse to make the formulas to ge the design matrices for random effects
+#names(model$modelInfo$reStruc$condReStruc)

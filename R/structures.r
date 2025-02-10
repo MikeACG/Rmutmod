@@ -129,6 +129,53 @@ new_MutGLMMTMB <- function(
 
 }
 
+new_MonoMAFglmmTMB <- function(
+    model = structure(list(), class = "glmmTMB"),
+    varcor = structure(list(), class = "VarCorr.glmmTMB")
+) {
+
+    monoMAFglmmTMB <- structure(
+        list(
+            model = model,
+            varcor = varcor
+        ),
+        class = "MonoMAFglmmTMB"
+    )
+
+    return(monoMAFglmmTMB)
+
+}
+
+new_MultiMAFglmmTMB <- function(
+    modelPaths = character(6L),
+    mafdir = character(1L),
+    k = integer(1L),
+    targetdir = character(1L),
+    genomedir = character(1L),
+    chrs = character(0L),
+    fdirs = setNames(character(0L), character(0L)),
+    .cond = as.formula(NULL)
+) {
+
+    multiMAFglmmTMB <- structure(
+        list(
+            modelPaths = modelPaths,
+            mafdir = mafdir,
+            k = k,
+            targetdir = targetdir,
+            genomedir = genomedir,
+            chrs = chrs,
+            fdirs = fdirs,
+            formula = formula
+        ),
+        class = c("Rmutmod", "MultiMAFglmmTMB")
+    )
+
+    return(multiMAFglmmTMB)
+
+}
+
+
 #' @export
 kGet <- function(x) {
 
