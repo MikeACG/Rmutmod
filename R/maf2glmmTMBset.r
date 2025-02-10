@@ -35,21 +35,21 @@ files4monoGLMMTMB <- function(mafdb, k, targetdb, genomePaths, chrs, fdirs) {
 }
 
 #' @export
-file2monoGLMMTMB <- function(tmpfile, .cond, ntumordt) {
+file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
 
     # aggregate data by design features
-    ccxdt <- fread(tmpfiles[ii], nThread = 1)
-    modvars <- setdiff(names(ccxdt), c("nmut", "nchance"))
+    ccxdt <- data.table::fread(tmpPath, nThread = 1)
+    modvars <- setdiff(names(ccxdt), c("nmut", "nchance", "mut"))
     ccxdt <- ccxdt[, list("nmut" = sum(nmut), "nchance" = sum(nchance)), by = modvars] # this does nothing when 1 of the variables doesnt repeat across chromosomes (frequent with random effects)
 
     # annotate with the number of samples per cohort and adjust abundances by them
-    ccxdt[tumordt, "ntumor" := i.ntumor, on = "cohort"]
+    ccxdt[ntumordt, "ntumor" := i.ntumor, on = "cohort"]
     ccxdt[, "nchanceAdj" := nchance * ntumor] # mutation chances
     ccxdt[, "logchance" := log(nchanceAdj)]
 
     # format the variables correctly and check that they have variance
     ccxdt[, ':=' ("nchance" = NULL, "nchanceAdj" = NULL, "ntumor" = NULL)]
-    novarVars <- formatGLMMfeatures(ccxdt, modvars)
+    novarVars <- formatFeatures(ccxdt, modvars)
     .cond <- remove_mterms(.cond, novarVars) # if variables have no variance, remove them from modelformula
 
     # this fits for T>G mutations: .cond <- as.formula("nmut ~ kmer + tx + rxMCF7 + nucLBBC_5bins + (kmer || cohort) + (kmer || binGenome10mb) + offset(logchance)")
@@ -63,6 +63,7 @@ file2monoGLMMTMB <- function(tmpfile, .cond, ntumordt) {
         REML = TRUE,
         verbose = TRUE
     )
+    rm(ccxdt); gc()
 
     # running VarrCorr can temporarily bloat the memory. Since the fitting model part could require a big
     # machine, we take aadvantage of that and run VarrCorr right now to store the result
