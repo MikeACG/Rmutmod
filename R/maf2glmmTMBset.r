@@ -49,8 +49,8 @@ file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
 
     # format the variables correctly and check that they have variance
     ccxdt[, ':=' ("nchance" = NULL, "nchanceAdj" = NULL, "ntumor" = NULL)]
-    novarVars <- formatFeatures(ccxdt, modvars)
-    .cond <- remove_mterms(.cond, novarVars) # if variables have no variance, remove them from modelformula
+    novarVars <- Rmutmod:::formatFeatures(ccxdt, modvars)
+    .cond <- Rmutmod:::remove_mterms(.cond, novarVars) # if variables have no variance, remove them from modelformula
 
     # this fits for T>G mutations: .cond <- as.formula("nmut ~ kmer + tx + rxMCF7 + nucLBBC_5bins + (kmer || cohort) + (kmer || binGenome10mb) + offset(logchance)")
     model <- glmmTMB::glmmTMB(
@@ -148,16 +148,25 @@ formatFeatures <- function(ccxdt, vars2format) {
 
 }
 
-# https://stackoverflow.com/questions/23381616/r-update-function-how-to-drop-all-the-variables-that-are-related-to-a-pre-speci
 # this currently does not support removing from random effects formula part
 remove_terms <- function(form, term) {
 
-  fterms <- terms(form)
-  fac <- attr(fterms, "factors")
-  idx <- which(as.logical(fac[term, ]))
-  new_fterms <- drop.terms(fterms, dropx = idx, keep.response = TRUE)
+    .terms <- terms(form)
+    labs <- attr(.terms, "term.labels")
 
-  return(formula(new_fterms))
+    # eliminate terms and keep parenthesis on random effects
+    newLabs <- labs[-grep(term, labs)]
+    reidx <- grep("[|]|[||]", newLabs)
+    newLabs[reidx] <- paste0("(", newLabs[reidx], ")")
+
+    # add response and create new formula
+    newString <- paste0(
+        rownames(attr(.terms, "factors"))[1],
+        "~",
+        paste(newLabs, collapse = "+")
+    )
+
+    return(formula(newString))
 
 }
 
