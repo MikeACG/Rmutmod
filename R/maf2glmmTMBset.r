@@ -49,8 +49,9 @@ file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
 
     # format the variables correctly and check that they have variance
     ccxdt[, ':=' ("nchance" = NULL, "nchanceAdj" = NULL, "ntumor" = NULL)]
-    novarVars <- Rmutmod:::formatFeatures(ccxdt, modvars)
-    .cond <- Rmutmod:::remove_mterms(.cond, novarVars) # if variables have no variance, remove them from modelformula
+    ccxdt[, (modvars) := lapply(.SD, function(x) factor(as.character(x))), .SDcols = modvars]
+    novarVars <- modvars[sapply(ccxdt[, .SD, .SDcols = modvars], function(x) length(levels(x))) < 2]
+    .cond <- remove_mterms(.cond, novarVars) # if variables have no variance, remove them from modelformula
 
     # this fits for T>G mutations: .cond <- as.formula("nmut ~ kmer + tx + rxMCF7 + nucLBBC_5bins + (kmer || cohort) + (kmer || binGenome10mb) + offset(logchance)")
     model <- glmmTMB::glmmTMB(
@@ -123,30 +124,30 @@ getMAFntumors <- function(mafdb) {
 
 }
 
-formatFeatures <- function(ccxdt, vars2format) {
+# formatFeatures <- function(ccxdt, vars2format) {
 
-    novarVars <- c()
-    for (jj in 1:length(vars2format)) {
+#     novarVars <- c()
+#     for (jj in 1:length(vars2format)) {
 
-        v <- vars2format[jj]
-        if (is.factor(ccxdt[[v]]) | is.character(ccxdt[[v]])) {
+#         v <- vars2format[jj]
+#         if (is.factor(ccxdt[[v]]) | is.character(ccxdt[[v]])) {
 
-            ccxdt[, (v) := factor(as.character(get(v)))]
-            check <- length(levels(ccxdt[[v]])) > 1
+#             ccxdt[, (v) := factor(as.character(get(v)))]
+#             check <- length(levels(ccxdt[[v]])) > 1
 
-        } else { # numeric or integer
+#         } else { # numeric or integer
 
-            check <- var(ccxdt[[v]]) > 0
+#             check <- var(ccxdt[[v]]) > 0
 
-        }
+#         }
 
-        if (!check) novarVars <- c(novarVars, v)
+#         if (!check) novarVars <- c(novarVars, v)
 
-    }
+#     }
 
-    return(novarVars)
+#     return(novarVars)
 
-}
+# }
 
 # this currently does not support removing from random effects formula part
 remove_terms <- function(form, term) {
