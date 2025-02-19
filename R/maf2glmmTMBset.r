@@ -19,7 +19,7 @@ files4monoGLMMTMB <- function(mafdb, k, targetdb, genomePaths, chrs, fdirs) {
         ccxdt <- chrom2mafDesign(chrs[ii], mafdb, targetdb, genomePaths[ii], nflank, fdirs)
 
         # save to disk by mononucleotide substitution type
-        ccxdt <- split(ccxdt, paste(substr(xdt$kmer, icenter, icenter), xdt$mut, sep = "_"))
+        ccxdt <- split(ccxdt, paste(substr(ccxdt$kmer, icenter, icenter), ccxdt$mut, sep = "_"))
         mapply(
             data.table::fwrite,
             ccxdt,
