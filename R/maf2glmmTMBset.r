@@ -23,7 +23,7 @@ files4monoGLMMTMB <- function(mafdb, k, targetdb, genomePaths, chrs, fdirs) {
         mapply(
             data.table::fwrite,
             ccxdt,
-            paste0(tmpdir, names(xdt), ".tmp"),
+            paste0(tmpdir, names(ccxdt), ".tmp"),
             MoreArgs = list(sep = "\t", append = TRUE, nThread = 1)
         )
         rm(xdt); gc()
@@ -47,11 +47,13 @@ file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
     ccxdt[, "nchanceAdj" := nchance * ntumor] # mutation chances
     ccxdt[, "logchance" := log(nchanceAdj)]
 
+    #ccxdt <- ccxdt[!(cohort %in% c("UVM"))] # this makes it run!!!!
+
     # format the variables correctly and check that they have variance
     ccxdt[, ':=' ("nchance" = NULL, "nchanceAdj" = NULL, "ntumor" = NULL)]
     ccxdt[, (modvars) := lapply(.SD, function(x) factor(as.character(x))), .SDcols = modvars]
     novarVars <- modvars[sapply(ccxdt[, .SD, .SDcols = modvars], function(x) length(levels(x))) < 2]
-    .cond <- remove_mterms(.cond, novarVars) # if variables have no variance, remove them from modelformula
+    .cond <- remove_mterms(.cond, novarVars) # if variables have no variance, remove them from model formula
 
     # this fits for T>G mutations: .cond <- as.formula("nmut ~ kmer + tx + rxMCF7 + nucLBBC_5bins + (kmer || cohort) + (kmer || binGenome10mb) + offset(logchance)")
     model <- glmmTMB::glmmTMB(
@@ -60,7 +62,13 @@ file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
         glmmTMB::nbinom2(),
         dispformula = ~ 1,
         sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = TRUE),
-        control = glmmTMB::glmmTMBControl("optCtrl" = list(iter.max = 10000, eval.max = 10000)),
+        control = glmmTMB::glmmTMBControl(
+            "optCtrl" = list(iter.max = 10000, eval.max = 10000),
+        ),
+        #start = list(
+        #    #"beta" = c(0, rep(0, 15), rep(0, 3), rep(0, 2), rep(0, 4), rep(1, 4)),
+        #    "theta" = rep(1, 32)
+        #),
         REML = TRUE,
         verbose = TRUE
     )
