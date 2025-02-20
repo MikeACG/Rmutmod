@@ -95,18 +95,17 @@ maf2glmmTMBset <- function(mafdir, k, targetdir, genomedir, chrs, fdirs, .cond, 
 
     }
 
-    mafGLMMTMBset <- new_MultiMAFglmmTMB(
-        outPaths,
+    multiMAFglmmTMBparts <- new_MultiMAFglmmTMBparts(
+        parts,
         mafdir,
         k,
         targetdir,
         genomedir,
         chrs,
-        fdirs,
-        .cond
+        fdirs
     )
     unlink(tmpdir, recursive = TRUE)
-    return(mafGLMMTMBset)
+    return(multiMAFglmmTMBparts)
 
 }
 

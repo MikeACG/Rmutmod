@@ -66,6 +66,14 @@ mutFrame <- function(rangedt, k, genomeDir, fdirs, fplabs, .chr) {
 
 }
 
+#' @export
+kGet <- function(x) {
+
+    UseMethod("kGet")
+
+}
+
+
 # these are useful accesses for glmmTMB objects
 # this gets the fixed effects formula
 #formula(model, fixed.only = TRUE)
