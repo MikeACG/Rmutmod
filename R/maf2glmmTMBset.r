@@ -63,12 +63,8 @@ file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
         REML = TRUE,
         verbose = TRUE
     )
-    rm(ccxdt); gc()
 
-    # running VarrCorr can temporarily bloat the memory. Since the fitting model part could require a big
-    # machine, we take aadvantage of that and run VarrCorr right now to store the result
-    monoMAFglmmTMB <- new_MonoMAFglmmTMB(model, glmmTMB::VarCorr(model))
-    return(monoMAFglmmTMB)
+    return(model)
 
 }
 
@@ -95,8 +91,8 @@ maf2glmmTMBset <- function(mafdir, k, targetdir, genomedir, chrs, fdirs, .cond, 
 
     }
 
-    multiMAFglmmTMBparts <- new_MultiMAFglmmTMBparts(
-        parts,
+    multiMAFglmmTMB <- new_MultiMAFglmmTMBparts(
+        outPaths,
         mafdir,
         k,
         targetdir,
@@ -105,7 +101,7 @@ maf2glmmTMBset <- function(mafdir, k, targetdir, genomedir, chrs, fdirs, .cond, 
         fdirs
     )
     unlink(tmpdir, recursive = TRUE)
-    return(multiMAFglmmTMBparts)
+    return(multiMAFglmmTMB)
 
 }
 

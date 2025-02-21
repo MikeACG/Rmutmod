@@ -129,61 +129,17 @@ new_MutGLMMTMB <- function(
 
 }
 
-new_MonoMAFglmmTMB <- function(
-    model = structure(list(), class = "glmmTMB"),
-    varcor = structure(list(), class = "VarCorr.glmmTMB")
-) {
-
-    monoMAFglmmTMB <- structure(
-        list(
-            model = model,
-            varcor = varcor
-        ),
-        class = "MonoMAFglmmTMB"
-    )
-
-    return(monoMAFglmmTMB)
-
-}
-
-new_MonoMAFglmmTMBparts <- function(
-    fixef = list(),
-    fixvcov = list(),
-    ranef = list(),
-    sigma = numeric(1),
-    cformula = formula(),
-    rformulas = list(),
-    flevels = list()
-) {
-
-    monoMAFglmmTMBparts <- structure(
-        list(
-            "fixef" = fixef,
-            "fixvcov" = fixvcov,
-            "ranef" = ranef,
-            "sigma" = sigma,
-            "cformula" = cformula,
-            "rformulas" = rformulas,
-            "flevels" = flevels
-        ),
-        class = "MonoMAFglmmTMBparts"
-    )
-
-    return(monoMAFglmmTMBparts)
-
-}
-
-new_MultiMAFglmmTMBparts <- function(
-    parts = list(),
-    mafdir = character(1L),
-    k = integer(1L),
-    targetdir = character(1L),
-    genomedir = character(1L),
+new_MultiMAFglmmTMB <- function(
+    modelPaths = character(6),
+    mafdir = character(1),
+    k = integer(1),
+    targetdir = character(1),
+    genomedir = character(1),
     chrs = character(0L),
-    fdirs = setNames(character(0L), character(0L))
+    fdirs = setNames(character(0), character(0))
 ) {
 
-    multiMAFglmmTMBparts <- structure(
+    multiMAFglmmTMB <- structure(
         list(
             modelPaths = modelPaths,
             mafdir = mafdir,
@@ -193,10 +149,10 @@ new_MultiMAFglmmTMBparts <- function(
             chrs = chrs,
             fdirs = fdirs
         ),
-        class = c("Rmutmod", "MultiMAFglmmTMBparts")
+        class = c("Rmutmod", "MultiMAFglmmTMB")
     )
 
-    return(multiMAFglmmTMBparts)
+    return(multiMAFglmmTMB)
 
 }
 
