@@ -156,11 +156,69 @@ new_MultiMAFglmmTMB <- function(
 
 }
 
+new_MonoMAFglmmTMBsim <- function(
+    fixef = matrix(0.0, nrow = 0, ncol = 0),
+    ranef = list(list()),
+    sigma = numeric(1),
+    cformula = formula(),
+    iformulas = list(),
+    rformulas = list(),
+    flevels = list()
+) {
+
+    monoMAFglmmTMBsim <- structure(
+        list(
+            "fixef" = fixef,
+            "ranef" = ranef,
+            "sigma" = sigma,
+            "cformula" = cformula,
+            "iformulas" = iformulas,
+            "rformulas" = rformulas,
+            "flevels" = flevels
+        ),
+        class = c("MonoMAFglmmTMBsim")
+    )
+
+    return(monoMAFglmmTMBsim)
+
+}
+
+new_MultiMAFglmmTMBsim <- function(
+    sims = rep(new_MonoMAFglmmTMBsim(), 6),
+    nsims = integer(1)
+) {
+
+    multiMAFglmmTMBsim <- structure(
+        list(
+            "sims" = sims,
+            "nsims" = nsims,
+        ),
+        class = c("Rmutsim", "MultiMAFglmmTMBsim")
+    )
+
+    return(monoMAFglmmTMBsim)
+
+}
+
+
+#' @export
+modelPathsGet <- function(x) {
+
+    UseMethod("modelPathsGet", x)
+
+}
+
+#' @export
+modelPathsGet.MultiMAFglmmTMB <- function(multiMAFglmmTMB) {
+
+    return(multiMAFglmmTMB$modelPaths)
+
+}
 
 #' @export
 kGet <- function(x) {
 
-    UseMethod("kGet")
+    UseMethod("kGet", x)
 
 }
 
@@ -174,7 +232,7 @@ kGet.Rmutmod <- function(rmutmod) {
 #' @export
 targetdirGet <- function(x) {
 
-    UseMethod("targetdirGet")
+    UseMethod("targetdirGet", x)
 
 }
 

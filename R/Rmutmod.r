@@ -85,6 +85,8 @@ pyriOrient <- function(.dt, .isPuri, icols, ocols) {
         .SDcols = icols
     ]
 
+    return()
+
 }
 
 #' @export
@@ -374,12 +376,7 @@ expandMuts <- function(sitedt, nflank) {
 }
 
 #' @export
-mutdesign <- function(rmutmod, rangedt, .chr) {
-    
-    genomeDir <- genomedirGet(rmutmod)
-    k <- kGet(rmutmod)
-    fdirs <- fdirsGet(rmutmod)
-    fplabs <- fplabsGet(rmutmod)
+mutdesign <- function(.chr, rangedt, genomeDir, k, fdirs) {
 
     nflank <- (k - 1) / 2
     genome <- setNames(Biostrings::readDNAStringSet(paste0(genomeDir, .chr, ".fasta")), .chr)
@@ -387,9 +384,8 @@ mutdesign <- function(rmutmod, rangedt, .chr) {
     pyriOrient(sitedt, isPuri(sitedt$kmer, nflank), "kmer", "kmer")
     rm(genome)
 
-    addFeatures(fdirs, .chr, sitedt)
-    xdt <- expandMuts(sitedt, nflank)
-    formatFeatures(xdt, fplabs)
+    Rmutmod:::addFeatures(fdirs, .chr, sitedt)
+    xdt <- Rmutmod:::expandMuts(sitedt, nflank)
 
     return(xdt)
 

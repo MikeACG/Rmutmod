@@ -67,15 +67,214 @@ mutFrame <- function(rangedt, k, genomeDir, fdirs, fplabs, .chr) {
 }
 
 #' @export
-kGet <- function(x) {
+mod2sim <- function(x, ...) {
 
-    UseMethod("kGet")
+    UseMethod("mod2sim")
+
+}
+
+#' @export
+mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
+
+    # simulate coefficients that will be used for simulating mutation probs
+    tmbPaths <- modelPathsGet(multiMAFglmmTMB)
+    snpTypes <- lapply(strsplit(names(tmbPaths), "_"), setNames, c("ref", "mut"))
+    simCoefList <- list()
+    for (jj in 1:length(tmbPaths)) {
+
+        cat("\t", jj, "/", length(tmbPaths), "...\n", sep = "")
+
+        tmb <- readRDS(tmbPaths[jj])
+        simCoefList[[names(tmbPaths)[jj]]] <- coefSim(tmb, .n, pmutdt, snpTypes[[jj]])
+
+        # doing this here avoids formulas being tied to the TMB object environment
+        simCoefList[[names(tmbPaths)[jj]]]$cformula <- as.formula(simCoefList[[names(tmbPaths)[jj]]]$cformula)
+        simCoefList[[names(tmbPaths)[jj]]]$rformulas <- lapply(simCoefList[[names(tmbPaths)[jj]]]$rformula, as.formula)
+        simCoefList[[names(tmbPaths)[jj]]]$iformulas <- lapply(simCoefList[[names(tmbPaths)[jj]]]$iformula, as.formula)
+
+        rm(tmb); gc()
+
+    }
+    
+    multiMAFglmmTMBsim <- new_MultiMAFglmmTMBsim(simCoefList, .n)
+    return(multiMAFglmmTMBsim)
+
+}
+
+#' @export
+coefSim <- function(tmb, .n, pmutdt, snpType) {
+
+    # get used levels for each random effect
+    subdt <- pmutdt[
+        ref == snpType["ref"] & mut == snpType["mut"],
+        .SD,
+        .SDcols = tmb$modelInfo$grpVar
+    ]
+    reList <- lapply(subdt, unique)
+
+    # modify levels of random effect variables to be empty
+    flevels <- lapply(tmb$frame, levels)
+    for (jj in 1:length(reList)) {
+
+        flevels[[names(reList)[jj]]] <- character(0)
+
+    }
+
+    simCoefs <- new_MonoMAFglmmTMBsim(
+        "fixef" = t(MASS::mvrnorm(.n, glmmTMB::fixef(tmb)$cond, vcov(tmb)$cond)),
+        "ranef" = ranefsSim(tmb, .n, pmutdt, reList),
+        "sigma" = glmmTMB::sigma(tmb),
+        "cformula" = paste("~", as.character(formula(tmb, fixed.only = TRUE))[3]),
+        "iformulas" = setNames(paste("~ 0 +", names(reList)), tmb$modelInfo$grpVar),
+        "rformulas" = setNames(
+            paste("~", sub("[|].*", "", names(tmb$modelInfo$reStruc$condReStruc))),
+            tmb$modelInfo$grpVar
+        ),
+        "flevels" = flevels
+    )
+
+    return(simCoefs)
+
+}
+
+ranefsSim <- function(tmb, .n, pmutdt, reList) {
+
+    # Get random effect info
+    condVars <- lapply(
+        glmmTMB::ranef(tmb, condVar = TRUE)$cond,
+        function(.ranefs) {
+            S <- attributes(.ranefs)$condVar
+            S[is.na(S)] <- 0.0 # NA are zero covariances
+            S 
+        }
+    )
+    condMeans <- lapply(glmmTMB::ranef(tmb, condVar = TRUE)$cond, as.matrix, TRUE)
+
+    # for each random effect
+    reSims <- mapply(
+        ranefSim,
+        reList,
+        condMeans,
+        condVars,
+        MoreArgs = list(".n" = .n),
+        SIMPLIFY = FALSE
+    )
+
+    return(reSims)
+
+}
+
+ranefSim <- function(relevels, condMean, condVar, .n) {
+
+    # get indices of conditional levels to simulate
+    idxs <- match(relevels, rownames(condMean))
+
+    # for each index simulate random coefficients
+    L <- lapply(
+        idxs,
+        function(idx) t(MASS::mvrnorm(.n, condMean[idx, ], condVar[, , idx]))
+    )
+
+    return(setNames(L, rownames(condMean)[idxs]))
 
 }
 
 
-# these are useful accesses for glmmTMB objects
-# this gets the fixed effects formula
-#formula(model, fixed.only = TRUE)
-# this gets strings that you can parse to make the formulas to ge the design matrices for random effects
-#names(model$modelInfo$reStruc$condReStruc)
+#' @export
+linearPredictor <- function(x, ...) {
+
+    UseMethod("linearPredictor", x)
+
+}
+
+#' @export
+linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
+
+    # format fixed-effect features correctly
+    flevels <- simCoefs$flevels
+    for (jj in 1:length(flevels)) {
+
+        v <- names(flevels)[jj]
+        if (length(flevels[[jj]]) > 0) {
+            snpdt[, (v) := factor(as.character(get(v)), flevels[[jj]])]
+        }
+
+    }
+
+    # format random-effects according to those present
+    reff <- names(simCoefs$ranef)
+    for (jj in 1:length(reff)) {
+
+        v <- reff[jj]
+        snpdt[, (v) := factor(as.character(get(v)))]
+
+    }
+
+    # fixed-effects linear predictor
+    FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
+
+    # random-effects linear predictor
+    RLP <- rePredictor(simCoefs$ranef, simCoefs$rformulas, simCoefs$iformulas, snpdt)
+
+    # complete linear predictor with offset
+    mu <- FLP + RLP + snpdt$logchance
+
+    # add dispersion variance
+    LP <- rdisp(mu, simCoefs$sigma, ncol(mu))
+
+    # return in the response scale
+    rownames(LP) <- snpdt$id
+    return(LP)
+
+}
+
+rePredictor <- function(.ranef, rformulas, iformulas, snpdt) {
+
+    # get levels of random effects
+    rlevels <- lapply(names(.ranef), function(r) levels(snpdt[[r]]))
+
+    # for each random effect
+    Z <- list()
+    for (jj in 1:length(.ranef)) {
+
+        # get the model matrix
+        M <- model.matrix(rformulas[[jj]], snpdt)
+
+        # get the indicators matrix for the levels of the random effect
+        .I <- matrix(1L, nrow = nrow(M), ncol = 1)
+        if (length(rlevels[[jj]]) > 1) .I <- model.matrix(iformulas[[jj]], snpdt)
+
+        # repeat cols of model matrix as many times as indicator column vectors
+        M_blocks <- M[, rep(1:ncol(M), ncol(.I))]
+
+        # repeat each indicator column vector as many times as columns in model matrix
+        .I_blocks <- .I[, rep(1:ncol(.I), each = ncol(M))]
+
+        # element-wise multiplication to set to 0 model matrix blocks unused in each observation
+        # and setup a single matrix multiplication later
+        Z[[jj]] <- M_blocks * .I_blocks
+        rm(M, .I, M_blocks, .I_blocks); gc()
+
+    }
+    Z <- do.call(cbind, Z) # concatenate random effect Z matrices over the columns
+
+    # get the random coefficient matrix for the used levels of random effects
+    R <- mapply(function(L, rl) do.call(rbind, L[rl]), .ranef, rlevels, SIMPLIFY = FALSE)
+    R <- do.call(rbind, R)
+
+    # return random-effects linear predictor
+    return(Z %*% R)
+
+}
+
+rdisp <- function(mu, .sigma, .n) {
+
+    m <- length(mu)
+    if (is.matrix(mu)) m <- nrow(mu)
+
+    LP <- matrix(rgamma(m * .n, .sigma), nrow = m, ncol = .n) / .sigma * mu
+
+    return(LP)
+
+}
+
