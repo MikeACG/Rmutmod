@@ -191,7 +191,7 @@ new_MultiMAFglmmTMBsim <- function(
     multiMAFglmmTMBsim <- structure(
         list(
             "sims" = sims,
-            "nsims" = nsims,
+            "nsims" = nsims
         ),
         class = c("Rmutsim", "MultiMAFglmmTMBsim")
     )
