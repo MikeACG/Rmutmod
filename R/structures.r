@@ -196,7 +196,7 @@ new_MultiMAFglmmTMBsim <- function(
         class = c("Rmutsim", "MultiMAFglmmTMBsim")
     )
 
-    return(monoMAFglmmTMBsim)
+    return(multiMAFglmmTMBsim)
 
 }
 
