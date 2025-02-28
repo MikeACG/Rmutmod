@@ -22,4 +22,9 @@ Imports:
     MASS,
     Matrix,
     MatrixModels,
+    Rcpp,
     stringi
+LinkingTo: 
+    Rcpp,
+    RcppArmadillo,
+    RcppEigen

@@ -211,7 +211,8 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
     }
 
     # fixed-effects linear predictor
-    FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
+    #FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
+    FLP <- eigenMapMatMult(model.matrix(simCoefs$cformula, snpdt), simCoefs$fixef)
 
     # random-effects linear predictor
     RLP <- rePredictor(simCoefs$ranef, simCoefs$rformulas, simCoefs$iformulas, snpdt)
@@ -222,7 +223,7 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
     # add dispersion variance
     LP <- rdisp(mu, simCoefs$sigma, ncol(mu))
 
-    # return in the response scale
+    # return with identifiers to leter reorder matrix
     rownames(LP) <- snpdt$id
     return(LP)
 
@@ -263,7 +264,7 @@ rePredictor <- function(.ranef, rformulas, iformulas, snpdt) {
     R <- do.call(rbind, R)
 
     # return random-effects linear predictor
-    return(Z %*% R)
+    return(eigenMapMatMult(Z, R))
 
 }
 
