@@ -442,6 +442,7 @@ chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs) {
     # add the model features to each site in the target and get all possible mutations
     tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
     Rmutmod:::addFeatures(fdirs, .chr, tkmerdt, mutdt)
+    tkmerdt <- tkmerdt[complete.cases(tkmerdt)]
     xdt <- Rmutmod:::expandMuts(tkmerdt, nflank)
     rm(tkmerdt)
 
