@@ -78,7 +78,7 @@ mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 
     # simulate coefficients that will be used for simulating mutation probs
     tmbPaths <- modelPathsGet(multiMAFglmmTMB)
-    snpTypes <- lapply(strsplit(names(tmbPaths), "_"), setNames, c("ref", "mut"))
+    snpTypes <- lapply(strsplit(names(tmbPaths), "."), setNames, c("ref", "mut"))
     simCoefList <- list()
     for (jj in 1:length(tmbPaths)) {
 

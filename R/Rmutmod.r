@@ -126,7 +126,7 @@ maf2mutdt <- function(mafdb, cohort, .chr, nflank, genome, extraCols = c()) {
 
     # load mutations without flagged records
     cols <- c(setNames(c("Start_Position", "Tumor_Seq_Allele2"), c("start", "mut")), extraCols)
-    mafdt <- mafLoad(mafdb, cols, .chr, cohort, flaggedMuts = FALSE)
+    mafdt <- mafLoad(mafdb, cols, .chr, cohort, flaggedMuts = "no")
 
     # if no mutations return 0 counts for all categories
     mutdt <- data.table::data.table(start = integer(0), kmer = character(0), mut = character(0), Cohort = character(0))
@@ -391,18 +391,19 @@ mutdesign <- function(.chr, rangedt, genomeDir, k, fdirs) {
 
 }
 
-chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmers, fdirs, fplabs) {
+chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, fdirs) {
 
     # get kmers of target sites and mutations
     genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
-    tkmerdt <- target2kmerdt(targetdb, .chr, nflank, genome)
+    tkmerdt <- Rmutmod:::target2kmerdt(targetdb, .chr, nflank, genome)
     mutdt <- maf2mutdt(mafdb, cohort, .chr, nflank, genome)
     rm(genome)
 
     # add the model features to each site in the target and get all possible mutations
     tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
-    addFeatures(fdirs, .chr, tkmerdt)
-    xdt <- expandMuts(tkmerdt, nflank)
+    Rmutmod:::addFeatures(fdirs, .chr, tkmerdt)
+    tkmerdt <- tkmerdt[complete.cases(tkmerdt)]
+    xdt <- Rmutmod:::expandMuts(tkmerdt, nflank)
     rm(tkmerdt)
 
     # count observed mutations at each site
@@ -582,14 +583,13 @@ chrom2ctable <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkme
 
 xdt2disk <- function(xdt, tmpdir) {
 
-    xlist <- split(xdt, by = c("kmer", "mut"))
-    fnames <- paste0(tmpdir, gsub("[.]", "_", names(xlist)), ".tmp")
-    .append <- file.exists(fnames)
+    xlist <- split(xdt, stringi::stri_join(xdt$ref, xdt$mut, sep = "."))
+    fnames <- paste0(tmpdir, names(xlist), ".tmp")
     for (jj in 1:length(xlist)) {
 
         .dt <- xlist[[jj]]
-        .dt[, ':=' ("start" = NULL, "rangeid" = NULL, "ref" = NULL, "mut" = NULL, "kmer" = NULL)]
-        data.table::fwrite(.dt, fnames[jj], append = .append[jj], nThread = 1)
+        .dt[, ':=' ("start" = NULL, "rangeid" = NULL, "ref" = NULL, "mut" = NULL)]
+        data.table::fwrite(.dt, fnames[jj], append = TRUE, nThread = 1)
 
     }
 
@@ -648,63 +648,6 @@ strip_glm <- function(m1) {
 
 }
 
-#' @export
-trainMutGLMs <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs, .formula) {
-
-    pkmers <- Rmutmod:::makePkmers(k)
-    nflank <- (k - 1) / 2
-    mafdb <- arrow::open_dataset(mafdir)
-    targetdb <- arrow::open_dataset(targetdir)
-    genomePaths <- paste0(genomedir, chrs, ".fasta")
-    
-    tmpdir <- paste0("./", basename(tempdir()), "/")
-    dir.create(tmpdir)
-    for (ii in 1:length(chrs)) {
-
-        cat(ii, "/", length(chrs), "...\n", sep = "")
-
-        xdt <- Rmutmod:::chrom2table(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
-        Rmutmod:::xdt2disk(xdt, tmpdir)
-        rm(xdt)
-
-    }
-    
-    # fit models
-    fnames <- list.files(tmpdir, full.names = TRUE)
-    mnames <- gsub("[.]tmp", "", basename(fnames))
-    models <- list()
-    warns <- setNames(character(length(fnames)), mnames)
-    for (ii in 1:length(fnames)) {
-
-        cat(ii, "/", length(fnames), "...\n", sep = "")
-
-        xdt <- data.table::fread(fnames[ii])
-        formatFeatures(xdt, fplabs)
-        lastWarn <- list(message = "none")
-        models[[mnames[ii]]] <- strip_glm(tryglm(xdt, .formula))
-        warns[ii] <- lastWarn$message
-        rm(xdt)
-
-    }
-    unlink(tmpdir, recursive = TRUE)
-
-    mutGLMs <- new_MutGLMs(
-        models = models,
-        mafdir = mafdir,
-        cohort = cohort,
-        k = k,
-        targetdir = targetdir,
-        genomedir = genomedir,
-        chrs = chrs,
-        fdirs = fdirs,
-        fplabs = fplabs,
-        formula = .formula,
-        warns = warns
-    )
-
-    return(mutGLMs)
-
-}
 
 #' @export
 mutpredict.MutGLMs <- function(rmutmod, newdata, ...) {

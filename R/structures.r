@@ -61,82 +61,15 @@ validate_MutMatrix <- function(mutMatrix) {
 
 }
 
-new_MutGLMs <- function(
-    models = list(),
-    mafdir = character(1L),
-    cohort = character(1L),
-    k = integer(1L),
-    targetdir = character(1L),
-    genomedir = character(1L),
-    chrs = character(0L),
-    fdirs = setNames(character(0L), character(0L)),
-    fplabs = setNames(list(), character(0L)),
-    formula = as.formula(NULL),
-    warns = setNames(character(length(models)), character(length(models)))
-) {
-
-    mutGLMs <- structure(
-        list(
-            models = models,
-            mafdir = mafdir,
-            cohort = cohort,
-            k = k,
-            targetdir = targetdir,
-            genomedir = genomedir,
-            chrs = chrs,
-            fdirs = fdirs,
-            fplabs = fplabs,
-            formula = formula,
-            warns = warns
-        ),
-        class = c("Rmutmod", "MutGLMs")
-    )
-
-    return(mutGLMs)
-
-}
-
-new_MutGLMMTMB <- function(
-    model = structure(list(), class = "glmmTMB"),
-    mafdir = character(1L),
-    cohort = character(1L),
-    k = integer(1L),
-    targetdir = character(1L),
-    genomedir = character(1L),
-    chrs = character(0L),
-    fdirs = setNames(character(0L), character(0L)),
-    fplabs = setNames(list(), character(0L)),
-    formula = as.formula(NULL)
-) {
-
-    mutGLMMTMB <- structure(
-        list(
-            model = model,
-            mafdir = mafdir,
-            cohort = cohort,
-            k = k,
-            targetdir = targetdir,
-            genomedir = genomedir,
-            chrs = chrs,
-            fdirs = fdirs,
-            fplabs = fplabs,
-            formula = formula
-        ),
-        class = c("Rmutmod", "MutGLMMTMB")
-    )
-
-    return(mutGLMMTMB)
-
-}
-
 new_MultiMAFglmmTMB <- function(
     modelPaths = character(6),
     mafdir = character(1),
     k = integer(1),
     targetdir = character(1),
     genomedir = character(1),
-    chrs = character(0L),
-    fdirs = setNames(character(0), character(0))
+    chrs = character(0),
+    fdirs = setNames(character(0), character(0)),
+    cohort = character(1)
 ) {
 
     multiMAFglmmTMB <- structure(
@@ -147,7 +80,8 @@ new_MultiMAFglmmTMB <- function(
             targetdir = targetdir,
             genomedir = genomedir,
             chrs = chrs,
-            fdirs = fdirs
+            fdirs = fdirs,
+            cohort = cohort
         ),
         class = c("Rmutmod", "MultiMAFglmmTMB")
     )
@@ -258,20 +192,6 @@ modelGet.MutMatrix <- function(mutmatrix) {
 }
 
 #' @export
-modelGet.MutGLMs <- function(mutGLMs) {
-
-    return(mutGLMs$models)
-
-}
-
-#' @export
-modelGet.MutGLMMTMB <- function(mutGLMMTMB) {
-
-    return(mutGLMMTMB$model)
-
-}
-
-#' @export
 mutpredict <- function (x, newdata, ...) {
 
    UseMethod("mutpredict", x)
@@ -376,103 +296,3 @@ fdirsGet.Rmutmod <- function(rmutmod) {
 
 }
 
-#' @export
-fplabsGet <- function(x) {
-
-    UseMethod("fplabsGet", x)
-
-}
-
-#' @export
-fplabsGet.Rmutmod <- function(rmutmod) {
-
-    return(rmutmod$fplabs)
-
-}
-
-#' @export
-formulaGet <- function(x) {
-
-    UseMethod("formulaGet", x)
-
-}
-
-#' @export
-formulaGet.MutGLMs <- function(mutGLMs) {
-
-    return(mutGLMs$formula)
-
-}
-
-#' @export
-formulaGet.MutGLMMTMB <- function(mutGLMMTMB) {
-
-    return(mutGLMMTMB$formula)
-
-}
-
-#' @export
-nparamGet <- function(x) {
-
-    UseMethod("nparamGet", x)
-
-}
-
-#' @export
-nparamGet.MutMatrix <- function(mutMatrix) {
-
-    modeldt <- modelGet(mutMatrix)
-    
-    return(nrow(modeldt) - 1)
-
-}
-
-#' @export
-nparamGet.MutGLMs <- function(mutGLMs) {
-
-    models <- modelGet(mutGLMs)
-    nparam <- sapply(models, function(m) sum(!is.na(coef(m))))
-
-    return(sum(nparam))
-
-}
-
-#' @export
-pkmersGet.MutGLMs <- function(mutGLMs) {
-
-    models <- modelGet(mutGLMs)
-    pkmers <- gsub("_.*", "", names(models))
-
-    return(pkmers)
-
-}
-
-#' @export
-pmutcatGet <- function(x) {
-
-    UseMethod("pmutcatGet", x)
-
-}
-
-#' @export
-pmutcatGet.MutMatrix <- function(mutMatrix) {
-
-    modeldt <- modelGet(mutMatrix)
-    catdt <- unique(modeldt[, .SD, .SDcols = c("kmer", "mut")], by = c("kmer", "mut"))
-
-    return(catdt)
-
-}
-
-#' @export
-pmutcatGet.MutGLMs <- function(mutGLMs) {
-
-    models <- modelGet(mutGLMs)
-    catdt <- setNames(
-        data.table::fread(text = names(models), sep = "_", header = FALSE),
-        c("kmer", "mut")
-    )
-
-    return(catdt)
-
-}
