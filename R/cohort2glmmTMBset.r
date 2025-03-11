@@ -42,7 +42,9 @@ cohort2monoGLMMTMB <- function(tmpPath, .cond) {
         dispformula = ~ 1,
         sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = TRUE),
         control = glmmTMB::glmmTMBControl(
-            "optCtrl" = list(iter.max = 10000, eval.max = 10000),
+            optCtrl = list(iter.max = 10000, eval.max = 10000),
+            #optimizer = optim,
+            #optArgs = list(method = "BFGS")
         ),
         REML = FALSE,
         verbose = TRUE

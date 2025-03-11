@@ -78,7 +78,7 @@ mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 
     # simulate coefficients that will be used for simulating mutation probs
     tmbPaths <- modelPathsGet(multiMAFglmmTMB)
-    snpTypes <- lapply(strsplit(names(tmbPaths), "."), setNames, c("ref", "mut"))
+    snpTypes <- lapply(strsplit(names(tmbPaths), "[.]"), setNames, c("ref", "mut"))
     simCoefList <- list()
     for (jj in 1:length(tmbPaths)) {
 
@@ -89,9 +89,13 @@ mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 
         # doing this here avoids formulas being tied to the TMB object environment
         simCoefList[[names(tmbPaths)[jj]]]$cformula <- as.formula(simCoefList[[names(tmbPaths)[jj]]]$cformula)
-        simCoefList[[names(tmbPaths)[jj]]]$rformulas <- lapply(simCoefList[[names(tmbPaths)[jj]]]$rformula, as.formula)
-        simCoefList[[names(tmbPaths)[jj]]]$iformulas <- lapply(simCoefList[[names(tmbPaths)[jj]]]$iformula, as.formula)
+        if (length(simCoefList[[names(tmbPaths)[jj]]]$ranef) > 0) {
 
+            simCoefList[[names(tmbPaths)[jj]]]$rformulas <- lapply(simCoefList[[names(tmbPaths)[jj]]]$rformula, as.formula)
+            simCoefList[[names(tmbPaths)[jj]]]$iformulas <- lapply(simCoefList[[names(tmbPaths)[jj]]]$iformula, as.formula)
+
+        }
+        
         rm(tmb); gc()
 
     }
@@ -104,32 +108,47 @@ mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 #' @export
 coefSim <- function(tmb, .n, pmutdt, snpType) {
 
-    # get used levels for each random effect
-    subdt <- pmutdt[
-        ref == snpType["ref"] & mut == snpType["mut"],
-        .SD,
-        .SDcols = tmb$modelInfo$grpVar
-    ]
-    reList <- lapply(subdt, unique)
-
-    # modify levels of random effect variables to be empty
+    # get levels of variables
     flevels <- lapply(tmb$frame, levels)
-    for (jj in 1:length(reList)) {
 
-        flevels[[names(reList)[jj]]] <- character(0)
+    # if there are random effects
+    REs <- tmb$modelInfo$grpVar
+    .ranef <- list()
+    .iformulas <- list()
+    .rformulas <- list()
+    if (length(REs) > 0) {
+
+        # get used levels for each random effect
+        subdt <- pmutdt[
+            ref == snpType["ref"] & mut == snpType["mut"],
+            .SD,
+            .SDcols = REs
+        ]
+        reList <- lapply(subdt, unique)
+
+        # modify levels of random effect variables to be empty
+        for (jj in 1:length(reList)) {
+
+            flevels[[names(reList)[jj]]] <- character(0)
+
+        }
+
+        .ranef <- ranefsSim(tmb, .n, pmutdt, reList)
+        .iformulas <- setNames(paste("~ 0 +", names(reList)), REs)
+        .rformulas <- setNames(
+            paste("~", sub("[|].*", "", names(tmb$modelInfo$reStruc$condReStruc))),
+            REs
+        )
 
     }
 
-    simCoefs <- new_MonoMAFglmmTMBsim(
+    simCoefs <- Rmutmod:::new_MonoMAFglmmTMBsim(
         "fixef" = t(MASS::mvrnorm(.n, glmmTMB::fixef(tmb)$cond, vcov(tmb)$cond)),
-        "ranef" = ranefsSim(tmb, .n, pmutdt, reList),
+        "ranef" = .ranef,
         "sigma" = glmmTMB::sigma(tmb),
         "cformula" = paste("~", as.character(formula(tmb, fixed.only = TRUE))[3]),
-        "iformulas" = setNames(paste("~ 0 +", names(reList)), tmb$modelInfo$grpVar),
-        "rformulas" = setNames(
-            paste("~", sub("[|].*", "", names(tmb$modelInfo$reStruc$condReStruc))),
-            tmb$modelInfo$grpVar
-        ),
+        "iformulas" = .iformulas,
+        "rformulas" = .rformulas,
         "flevels" = flevels
     )
 
@@ -201,29 +220,33 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
 
     }
 
-    # format random-effects according to those present
-    reff <- names(simCoefs$ranef)
-    for (jj in 1:length(reff)) {
-
-        v <- reff[jj]
-        snpdt[, (v) := factor(as.character(get(v)))]
-
-    }
-
-    # fixed-effects linear predictor
+    # fixed-effects linear predictor with offset
     #FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
     FLP <- eigenMapMatMult(model.matrix(simCoefs$cformula, snpdt), simCoefs$fixef)
+    mu <- FLP + snpdt$logchance
 
-    # random-effects linear predictor
-    RLP <- rePredictor(simCoefs$ranef, simCoefs$rformulas, simCoefs$iformulas, snpdt)
+    # if there are random effects
+    if (length(simCoefs$ranef) > 0) {
 
-    # complete linear predictor with offset
-    mu <- FLP + RLP + snpdt$logchance
+        # format random-effects according to those present
+        reff <- names(simCoefs$ranef)
+        for (jj in 1:length(reff)) {
+
+            v <- reff[jj]
+            snpdt[, (v) := factor(as.character(get(v)))]
+
+        }
+
+        # random-effects linear predictor
+        RLP <- rePredictor(simCoefs$ranef, simCoefs$rformulas, simCoefs$iformulas, snpdt)
+        mu <- mu + RLP
+
+    }
 
     # add dispersion variance
     LP <- rdisp(mu, simCoefs$sigma, ncol(mu))
 
-    # return with identifiers to leter reorder matrix
+    # return with identifiers to later reorder matrix
     rownames(LP) <- snpdt$id
     return(LP)
 
