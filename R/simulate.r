@@ -74,9 +74,39 @@ mod2sim <- function(x, ...) {
 }
 
 #' @export
+mod2sim.MonoMAFglmmTMB <- function(monoMAFglmmTMB, .n, pmutdt) {
+    
+    # load model and determine the random efects used for current mononucleotide substitution to avoid unnecessary simulations
+    tmb <- modelGet(monoMAFglmmTMB)
+    REs <- tmb$modelInfo$grpVar
+    reList <- list()
+    if (length(REs) > 0) {
+
+        subdt <- pmutdt[, .SD, .SDcols = REs]
+        reList <- lapply(subdt, unique)
+
+    }
+    
+    # simulate coefficients for the linear predictor of the model
+    simCoefs <- coefSim(tmb, .n, reList)
+
+    # doing this here avoids formulas being tied to the TMB object environment
+    simCoefs$cformula <- as.formula(simCoefs$cformula)
+    if (length(simCoefs$ranef) > 0) {
+
+        simCoefs$rformulas <- lapply(simCoefs$rformula, as.formula)
+        simCoefs$iformulas <- lapply(simCoefs$iformula, as.formula)
+
+    }
+    
+    return(simCoefs)
+
+}
+
+
+#' @export
 mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 
-    # simulate coefficients that will be used for simulating mutation probs
     tmbPaths <- modelPathsGet(multiMAFglmmTMB)
     snpTypes <- lapply(strsplit(names(tmbPaths), "[.]"), setNames, c("ref", "mut"))
     simCoefList <- list()
@@ -84,8 +114,23 @@ mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 
         cat("\t", jj, "/", length(tmbPaths), "...\n", sep = "")
 
+        # load model and determine the random efects used for current mononucleotide substitution to avoid unnecessary simulations
         tmb <- readRDS(tmbPaths[jj])
-        simCoefList[[names(tmbPaths)[jj]]] <- coefSim(tmb, .n, pmutdt, snpTypes[[jj]])
+        REs <- tmb$modelInfo$grpVar
+        reList <- list()
+        if (length(REs) > 0) {
+
+            subdt <- pmutdt[
+                ref == snpTypes[[jj]]["ref"] & mut == snpTypes[[jj]]["mut"],
+                .SD,
+                .SDcols = REs
+            ]
+            reList <- lapply(subdt, unique)
+
+        }
+
+        # simulate coefficients for the linear predictor of the model
+        simCoefList[[names(tmbPaths)[jj]]] <- coefSim(tmb, .n, reList)
 
         # doing this here avoids formulas being tied to the TMB object environment
         simCoefList[[names(tmbPaths)[jj]]]$cformula <- as.formula(simCoefList[[names(tmbPaths)[jj]]]$cformula)
@@ -106,26 +151,17 @@ mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 }
 
 #' @export
-coefSim <- function(tmb, .n, pmutdt, snpType) {
+coefSim <- function(tmb, .n, reList) {
 
     # get levels of variables
     flevels <- lapply(tmb$frame, levels)
 
     # if there are random effects
-    REs <- tmb$modelInfo$grpVar
     .ranef <- list()
     .iformulas <- list()
     .rformulas <- list()
-    if (length(REs) > 0) {
-
-        # get used levels for each random effect
-        subdt <- pmutdt[
-            ref == snpType["ref"] & mut == snpType["mut"],
-            .SD,
-            .SDcols = REs
-        ]
-        reList <- lapply(subdt, unique)
-
+    if (length(reList) > 0) {
+        
         # modify levels of random effect variables to be empty
         for (jj in 1:length(reList)) {
 
@@ -133,7 +169,7 @@ coefSim <- function(tmb, .n, pmutdt, snpType) {
 
         }
 
-        .ranef <- ranefsSim(tmb, .n, pmutdt, reList)
+        .ranef <- ranefsSim(tmb, .n, reList)
         .iformulas <- setNames(paste("~ 0 +", names(reList)), REs)
         .rformulas <- setNames(
             paste("~", sub("[|].*", "", names(tmb$modelInfo$reStruc$condReStruc))),
@@ -156,7 +192,7 @@ coefSim <- function(tmb, .n, pmutdt, snpType) {
 
 }
 
-ranefsSim <- function(tmb, .n, pmutdt, reList) {
+ranefsSim <- function(tmb, .n, reList) {
 
     # Get random effect info
     condVars <- lapply(

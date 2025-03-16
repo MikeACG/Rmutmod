@@ -90,6 +90,35 @@ new_MultiMAFglmmTMB <- function(
 
 }
 
+new_MonoMAFglmmTMB <- function(
+    model = structure(list(), class = "glmmTMB"),
+    mafdir = character(1),
+    k = integer(1),
+    targetdir = character(1),
+    genomedir = character(1),
+    chrs = character(0),
+    fdirs = setNames(character(0), character(0)),
+    cohort = character(1)
+) {
+
+    monoMAFglmmTMB <- structure(
+        list(
+            model = model,
+            mafdir = mafdir,
+            k = k,
+            targetdir = targetdir,
+            genomedir = genomedir,
+            chrs = chrs,
+            fdirs = fdirs,
+            cohort = cohort
+        ),
+        class = c("Rmutmod", "MonoMAFglmmTMB")
+    )
+
+    return(monoMAFglmmTMB)
+
+}
+
 new_MonoMAFglmmTMBsim <- function(
     fixef = matrix(0.0, nrow = 0, ncol = 0),
     ranef = list(list()),
@@ -188,6 +217,13 @@ modelGet <- function(x) {
 modelGet.MutMatrix <- function(mutmatrix) {
 
     return(mutmatrix$modeldt)
+
+}
+
+#' @export
+modelGet.MonoMAFglmmTMB <- function(monoMAFglmmTMB) {
+
+    return(monoMAFglmmTMB$model)
 
 }
 

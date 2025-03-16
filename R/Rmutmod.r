@@ -376,9 +376,38 @@ expandMuts <- function(sitedt, nflank) {
 }
 
 #' @export
-mutdesign <- function(.chr, rangedt, genomeDir, k, fdirs) {
+mutdesign <- function(rmutmod, rangedt, .chr) {
 
+    UseMethod("mutdesign", x)
+
+}
+
+#' @export
+mutdesign.default <- function(rmutmod, rangedt, .chr) {
+
+    xdt <- mutdesignBase(rmutmod, rangedt, .chr)
+
+    return(xdt)
+
+}
+
+#' @export
+mutdesign.MonoMAFglmmTMB <- function(rmutmod, rangedt, .chr) {
+
+    xdt <- mutdesignBase(rmutmod, rangedt, .chr)
+    xdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
+
+    return(xdt)
+
+}
+
+mutdesignBase <- function(rmutmod, rangedt, .chr) {
+
+    genomeDir <- genomedirGet(rmutmod)
+    k <- kGet(rmutmod)
+    fdirs <- fdirsGet(rmutmod)
     nflank <- (k - 1) / 2
+
     genome <- setNames(Biostrings::readDNAStringSet(paste0(genomeDir, .chr, ".fasta")), .chr)
     sitedt <- ranges2kmerdt(rangedt$start, rangedt$end, .chr, nflank, genome)
     pyriOrient(sitedt, isPuri(sitedt$kmer, nflank), "kmer", "kmer")
