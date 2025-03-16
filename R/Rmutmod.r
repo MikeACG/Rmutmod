@@ -376,7 +376,7 @@ expandMuts <- function(sitedt, nflank) {
 }
 
 #' @export
-mutdesign <- function(rmutmod, rangedt, .chr) {
+mutdesign <- function(x, rangedt, .chr) {
 
     UseMethod("mutdesign", x)
 
