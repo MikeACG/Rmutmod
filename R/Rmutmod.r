@@ -64,7 +64,7 @@ filterTxCount <- function(mafdt, minmut) {
 #' @export
 isPuri <- function(kmers, nflank) {
 
-    centerIdxs <- rep(nflank + 1, length(kmers))
+    centerIdxs <- rep(nflank + 1L, length(kmers))
     centers <- substr(kmers, centerIdxs, centerIdxs)
     ispuri <- centers == "A" | centers == "G"
 
@@ -86,39 +86,6 @@ pyriOrient <- function(.dt, .isPuri, icols, ocols) {
     ]
 
     return()
-
-}
-
-#' @export
-ranges2kmerdt <- function(.start, .end, .chr, nflank, genome) {
-
-    siteIdxs <- mapply(':', .start, .end, SIMPLIFY = FALSE)
-    rangeids <- rep(1:length(siteIdxs), sapply(siteIdxs, length))
-    siteIdxs <- unlist(siteIdxs, recursive = FALSE, use.names = FALSE)
-
-    kmerRanges <- GenomicRanges::GRanges(rep(.chr, length(siteIdxs)), IRanges::IRanges(siteIdxs - nflank, siteIdxs + nflank))
-    kmerdt <- data.table::data.table(
-        start = siteIdxs,
-        kmer = as.character(genome[kmerRanges], use.names = FALSE),
-        rangeid = rangeids
-    )
-    
-    return(kmerdt)
-
-}
-
-# get pyrimidine oriented kmers in sites where its possible to detect a mutation
-target2kmerdt <- function(targetdb, .chr, nflank, genome) {
-
-    targetdt <- targetdb %>% 
-        dplyr::filter(seqnames == .chr) %>%
-        dplyr::select(dplyr::all_of(c("start", "end"))) %>%
-        dplyr::collect()
-    
-    tkmerdt <- ranges2kmerdt(targetdt$start, targetdt$end, .chr, nflank, genome)
-    pyriOrient(tkmerdt, isPuri(tkmerdt$kmer, nflank), "kmer", "kmer")
-
-    return(tkmerdt)
 
 }
 
@@ -458,49 +425,6 @@ target2pmuts <- function(.chr, targetdb, genome, nflank, fdirs) {
     xdt <- Rmutmod:::expandMuts(tkmerdt, nflank)
     
     return(xdt)
-
-}
-
-chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs) {
-
-    # get kmers of target sites and mutations
-    genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
-    tkmerdt <- Rmutmod:::target2kmerdt(targetdb, .chr, nflank, genome)
-    mutdt <- maf2mutdt(mafdb, "all", .chr, nflank, genome, setNames("Cohort", "cohort"))
-    rm(genome)
-
-    # add the model features to each site in the target and get all possible mutations
-    tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
-    Rmutmod:::addFeatures(fdirs, .chr, tkmerdt, mutdt)
-    tkmerdt <- tkmerdt[complete.cases(tkmerdt)]
-    xdt <- Rmutmod:::expandMuts(tkmerdt, nflank)
-    rm(tkmerdt)
-
-    # aggregate possible mutations by feature categories and type
-    ccols <- c("kmer", "mut", names(fdirs))
-    cxdt <- xdt[, list("nchance" = .N), by = ccols]
-    rm(xdt)
-
-    # aggregate observed mutations by feature categories and type
-    mccols <- c(ccols, "cohort")
-    cmutdt <- mutdt[, list("nmut" = .N), by = mccols]
-    rm(mutdt)
-
-    # consider possible mutations in each cohort
-    ucohorts <- unique(cmutdt$cohort)
-    ccxdt <- cxdt[rep(1:nrow(cxdt), each = length(ucohorts))]
-    ccxdt[, "cohort" := rep(ucohorts, nrow(cxdt))]
-    rm(cxdt)
-
-    # note number of observed mutations in the possible mutations table
-    ccxdt[
-        cmutdt,
-        "nmut" := i.nmut,
-        on = mccols
-    ]
-    ccxdt[is.na(nmut), "nmut" := 0L]
-
-    return(ccxdt)
 
 }
 

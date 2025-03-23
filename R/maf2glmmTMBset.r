@@ -1,6 +1,51 @@
 #' @import data.table
 #' @importFrom dplyr %>%
 
+chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs) {
+
+    # get kmers of target sites and mutations
+    genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
+    xdt <- target2xdt(targetdb, .chr, nflank, genome)
+    mutdt <- Rmutmod:::maf2mutdt(mafdb, "all", .chr, nflank, genome, setNames("Cohort", "cohort"))
+    rm(genome)
+
+    # ensure the observed mutations are falling in the specified target
+    mutdt[xdt, "rangeid" := i.rangeid, on = c("start", "mut")]
+    mutdt <- mutdt[!is.na(rangeid)]
+
+    # add the model features to each possible mutaiton in the target and observed mutations
+    Rmutmod:::addFeatures(fdirs, .chr, xdt, mutdt)
+    xdt <- xdt[complete.cases(xdt)]
+    mutdt <- mutdt[complete.cases(mutdt)]
+
+    # aggregate possible mutations by feature categories and type
+    ccols <- c("kmer", "mut", names(fdirs))
+    cxdt <- xdt[, list("nchance" = .N), by = ccols]
+    rm(xdt)
+
+    # aggregate observed mutations by feature categories and type
+    mccols <- c(ccols, "cohort")
+    cmutdt <- mutdt[, list("nmut" = .N), by = mccols]
+    rm(mutdt)
+
+    # consider possible mutations in each cohort
+    ucohorts <- unique(cmutdt$cohort)
+    ccxdt <- cxdt[rep(1:nrow(cxdt), each = length(ucohorts))]
+    ccxdt[, "cohort" := rep(ucohorts, nrow(cxdt))]
+    rm(cxdt)
+
+    # note number of observed mutations in the possible mutations table
+    ccxdt[
+        cmutdt,
+        "nmut" := i.nmut,
+        on = mccols
+    ]
+    ccxdt[is.na(nmut), "nmut" := 0L]
+
+    return(ccxdt)
+
+}
+
 #' @export
 files4monoGLMMTMB <- function(mafdb, k, targetdb, genomePaths, chrs, fdirs) {
 
@@ -35,7 +80,7 @@ files4monoGLMMTMB <- function(mafdb, k, targetdb, genomePaths, chrs, fdirs) {
 }
 
 #' @export
-file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
+file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt, minTarget = NA_integer_) {
 
     # aggregate data by design features
     ccxdt <- data.table::fread(tmpPath, nThread = 1)
@@ -48,9 +93,12 @@ file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
     ccxdt[, "logchance" := log(nchanceAdj)]
 
     # format the variables correctly and check that they have variance
+    if (!is.na(minTarget)) ccxdt <- varTargetFilter(ccxdt, modvars, minTarget)
     ccxdt[, ':=' ("nchance" = NULL, "nchanceAdj" = NULL, "ntumor" = NULL)]
     ccxdt[, (modvars) := lapply(.SD, function(x) factor(as.character(x))), .SDcols = modvars]
 
+    .REML <- FALSE
+    if (any(grepl("[|]", as.character(.cond)))) .REML <- TRUE
     model <- glmmTMB::glmmTMB(
         .cond,
         ccxdt,
@@ -59,8 +107,9 @@ file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt) {
         sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = TRUE),
         control = glmmTMB::glmmTMBControl(
             "optCtrl" = list(iter.max = 10000, eval.max = 10000),
+            rank_check = "skip"
         ),
-        REML = TRUE,
+        REML = .REML,
         verbose = TRUE
     )
 
@@ -118,6 +167,23 @@ getMAFntumors <- function(mafdb) {
 
 }
 
+varTargetFilter <- function(ccxdt, modvars, minTarget) {
+
+    badIdxs <- c()
+    for (v in modvars) {
+
+        countdt <- ccxdt[, list("target" = sum(nchance)), by = v]
+        print(countdt)
+        badLevels <- countdt[target < minTarget][[v]]
+        badIdxs <- append(badIdxs, which(ccxdt[[v]] %in% badLevels))
+
+    }
+
+    if (length(badIdxs) > 0) return(ccxdt[-unique(badIdxs)])
+    return(ccxdt)
+
+}
+
 # formatFeatures <- function(ccxdt, vars2format) {
 
 #     novarVars <- c()
@@ -143,40 +209,3 @@ getMAFntumors <- function(mafdb) {
 
 # }
 
-# this currently does not support removing from random effects formula part
-remove_terms <- function(form, term) {
-
-    .terms <- terms(form)
-    labs <- attr(.terms, "term.labels")
-
-    # eliminate terms and keep parenthesis on random effects
-    newLabs <- labs[-grep(term, labs)]
-    reidx <- grep("[|]|[||]", newLabs)
-    newLabs[reidx] <- paste0("(", newLabs[reidx], ")")
-
-    # add response and create new formula
-    newString <- paste0(
-        rownames(attr(.terms, "factors"))[1],
-        "~",
-        paste(newLabs, collapse = "+")
-    )
-
-    return(formula(newString))
-
-}
-
-remove_mterms <- function(form, terms) {
-
-    jj <- 1
-    nform <- form
-    while(jj <= length(terms)) {
-
-        warning(paste0("Removing ", terms[jj], " from model formula as fit will fail if included."))
-        nform <- remove_terms(nform, terms[jj])
-        jj <- jj + 1
-
-    }
-
-    return(nform)
-
-}
