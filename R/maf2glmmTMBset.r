@@ -6,7 +6,7 @@ chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs) {
     # get kmers of target sites and mutations
     genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
     xdt <- target2xdt(targetdb, .chr, nflank, genome)
-    mutdt <- Rmutmod:::maf2mutdt(mafdb, "all", .chr, nflank, genome, setNames("Cohort", "cohort"))
+    mutdt <- maf2mutdt(mafdb, "all", .chr, nflank, genome, setNames("Cohort", "cohort"))
     rm(genome)
 
     # ensure the observed mutations are falling in the specified target
@@ -14,7 +14,7 @@ chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs) {
     mutdt <- mutdt[!is.na(rangeid)]
 
     # add the model features to each possible mutaiton in the target and observed mutations
-    Rmutmod:::addFeatures(fdirs, .chr, xdt, mutdt)
+    addFeatures(fdirs, .chr, xdt, mutdt)
     xdt <- xdt[complete.cases(xdt)]
     mutdt <- mutdt[complete.cases(mutdt)]
 
@@ -107,7 +107,7 @@ file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt, minTarget = NA_integer_) 
         sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = TRUE),
         control = glmmTMB::glmmTMBControl(
             "optCtrl" = list(iter.max = 10000, eval.max = 10000),
-            rank_check = "skip"
+            #rank_check = "skip"
         ),
         REML = .REML,
         verbose = TRUE
@@ -173,7 +173,7 @@ varTargetFilter <- function(ccxdt, modvars, minTarget) {
     for (v in modvars) {
 
         countdt <- ccxdt[, list("target" = sum(nchance)), by = v]
-        print(countdt)
+        #print(countdt)
         badLevels <- countdt[target < minTarget][[v]]
         badIdxs <- append(badIdxs, which(ccxdt[[v]] %in% badLevels))
 

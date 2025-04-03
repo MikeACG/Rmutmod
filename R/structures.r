@@ -317,7 +317,6 @@ chrsGet.Rmutmod <- function(rmutmod) {
 
 }
 
-
 #' @export
 fdirsGet <- function(x) {
 

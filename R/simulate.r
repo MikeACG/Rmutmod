@@ -178,7 +178,7 @@ coefSim <- function(tmb, .n, reList) {
 
     }
 
-    simCoefs <- Rmutmod:::new_MonoMAFglmmTMBsim(
+    simCoefs <- new_MonoMAFglmmTMBsim(
         "fixef" = t(MASS::mvrnorm(.n, glmmTMB::fixef(tmb)$cond, vcov(tmb)$cond)),
         "ranef" = .ranef,
         "sigma" = glmmTMB::sigma(tmb),
