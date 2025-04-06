@@ -170,7 +170,7 @@ coefSim <- function(tmb, .n, reList) {
         }
 
         .ranef <- ranefsSim(tmb, .n, reList)
-        .iformulas <- setNames(paste("~ 0 +", names(reList)), REs)
+        .iformulas <- setNames(paste("~ 0 +", names(reList)), names(reList))
         .rformulas <- setNames(
             paste("~", sub("[|].*", "", names(tmb$modelInfo$reStruc$condReStruc))),
             names(reList)
