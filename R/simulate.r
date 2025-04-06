@@ -173,7 +173,7 @@ coefSim <- function(tmb, .n, reList) {
         .iformulas <- setNames(paste("~ 0 +", names(reList)), REs)
         .rformulas <- setNames(
             paste("~", sub("[|].*", "", names(tmb$modelInfo$reStruc$condReStruc))),
-            REs
+            names(reList)
         )
 
     }
