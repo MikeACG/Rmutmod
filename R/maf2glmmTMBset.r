@@ -79,20 +79,20 @@ files4monoGLMMTMB <- function(mafdb, k, targetdb, genomePaths, chrs, fdirs) {
 
 }
 
-.df <- expand.grid(ref = c("C", "T"), mut = c("A", "C", "G", "T"), stringsAsFactors = F)
-.df <- .df[.df$ref != .df$mut, ]
-ccxdt <- list()
-for (ii in 1:nrow(.df)) {
+# .df <- expand.grid(ref = c("C", "T"), mut = c("A", "C", "G", "T"), stringsAsFactors = F)
+# .df <- .df[.df$ref != .df$mut, ]
+# ccxdt <- list()
+# for (ii in 1:nrow(.df)) {
 
-    x <- data.table::fread(paste0("RtmpisxKsy/", .df$ref[ii], "_", .df$mut[ii], ".tmp"), nThread = 1)
-    x[, "mutcat" := stringi::stri_join(kmer, ">", mut)]
-    ccxdt[[ii]] <- x[, list("nmut" = sum(nmut), "nchance" = sum(nchance)), by = setdiff(names(x), c("nmut", "nchance", "mut", "kmer"))]
-    rm(x)
+#     x <- data.table::fread(paste0("RtmpisxKsy/", .df$ref[ii], "_", .df$mut[ii], ".tmp"), nThread = 1)
+#     x[, "mutcat" := stringi::stri_join(kmer, ">", mut)]
+#     ccxdt[[ii]] <- x[, list("nmut" = sum(nmut), "nchance" = sum(nchance)), by = setdiff(names(x), c("nmut", "nchance", "mut", "kmer"))]
+#     rm(x)
 
-}
-ccxdt <- data.table::rbindlist(ccxdt)
-modvars <- setdiff(names(ccxdt), c("nmut", "nchance"))
-.cond <- as.formula("nmut ~ mutcat + txSimply + rxMCF7 + rightFlankNuc2 + rightFlankNuc3 + leftFlankNuc2 + leftFlankNuc3 + nucLBBC_5bins + meNEU_5bins + (mutcat + txSimply + rxMCF7 + rightFlankNuc2 + rightFlankNuc3 + leftFlankNuc2 + leftFlankNuc3 + nucLBBC_5bins || cohort) + offset(logchance)")
+# }
+# ccxdt <- data.table::rbindlist(ccxdt)
+# modvars <- setdiff(names(ccxdt), c("nmut", "nchance"))
+# .cond <- as.formula("nmut ~ mutcat + txSimply + rxMCF7 + rightFlankNuc2 + rightFlankNuc3 + leftFlankNuc2 + leftFlankNuc3 + nucLBBC_5bins + meNEU_5bins + (mutcat + txSimply + rxMCF7 + rightFlankNuc2 + rightFlankNuc3 + leftFlankNuc2 + leftFlankNuc3 + nucLBBC_5bins || cohort) + offset(logchance)")
 
 #' @export
 file2monoGLMMTMB <- function(tmpPath, .cond, ntumordt, minTarget = NA_integer_) {
