@@ -350,16 +350,17 @@ chrom2table <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, fdirs
 
     # get kmers of target sites and mutations
     genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
-    tkmerdt <- target2kmerdt(targetdb, .chr, nflank, genome)
+    xdt <- target2xdt(targetdb, .chr, nflank, genome)
     mutdt <- maf2mutdt(mafdb, cohort, .chr, nflank, genome)
     rm(genome)
 
-    # add the model features to each site in the target and get all possible mutations
-    tkmerdt <- tkmerdt[grepl("N", kmer) == FALSE] # remove invalid nucleotides
-    addFeatures(fdirs, .chr, tkmerdt)
-    tkmerdt <- tkmerdt[complete.cases(tkmerdt)]
-    xdt <- expandMuts(tkmerdt, nflank)
-    rm(tkmerdt)
+    # ensure the observed mutations are falling in the specified target
+    mutdt[xdt, "rangeid" := i.rangeid, on = c("start", "mut")]
+    mutdt <- mutdt[!is.na(rangeid)]
+
+    # add the model features to each possible mutation in the target and observed mutations
+    addFeatures(fdirs, .chr, xdt, mutdt)
+    xdt <- xdt[complete.cases(xdt)]
 
     # count observed mutations at each site
     xdt[

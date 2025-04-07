@@ -1,4 +1,22 @@
 #' @export
+cohort2xdt <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
+
+    nflank <- (k - 1) / 2
+    xdt <- list()
+    for (ii in 1:length(chrs)) {
+
+        cat(ii, "/", length(chrs), "...\n", sep = "")
+
+        xdt[[ii]] <- chrom2table(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, fdirs)
+
+    }
+    xdt <- rbindlist(xdt)
+
+    return(xdt)
+
+}
+
+#' @export
 cohort2files <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
 
     # create directory for temporal files to avoid using a lot of memory
@@ -23,10 +41,7 @@ cohort2files <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
 }
 
 #' @export
-cohort2monoGLMMTMB <- function(tmpPath, .cond) {
-
-    # aggregate data by design features
-    xdt <- data.table::fread(tmpPath, nThread = 1)
+xdt2monoGLMMTMB <- function(xdt, .cond) {
 
     # format the variables correctly
     for (v in names(xdt)) {
