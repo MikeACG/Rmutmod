@@ -128,3 +128,24 @@ synonymifyTarget <- function(sitedt, cdsgtfdt, .genome) {
     return(sitemutdt)
 
 }
+
+#' @export
+varTargetFilter <- function(xdt, modvars, minTarget) {
+
+    isAggregated <- "nchance" %in% modvars
+
+    badIdxs <- c()
+    for (v in modvars) {
+
+        countdt <- xdt[, list("target" = .N), by = v]
+        if (isAggregated) countdt <- xdt[, list("target" = sum(nchance)), by = v]
+        #print(countdt)
+        badLevels <- countdt[target < minTarget][[v]]
+        badIdxs <- append(badIdxs, which(xdt[[v]] %in% badLevels))
+
+    }
+
+    if (length(badIdxs) > 0) return(xdt[-unique(badIdxs)])
+    return(xdt)
+
+}

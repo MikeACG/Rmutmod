@@ -182,23 +182,6 @@ getMAFntumors <- function(mafdb) {
 
 }
 
-varTargetFilter <- function(ccxdt, modvars, minTarget) {
-
-    badIdxs <- c()
-    for (v in modvars) {
-
-        countdt <- ccxdt[, list("target" = sum(nchance)), by = v]
-        #print(countdt)
-        badLevels <- countdt[target < minTarget][[v]]
-        badIdxs <- append(badIdxs, which(ccxdt[[v]] %in% badLevels))
-
-    }
-
-    if (length(badIdxs) > 0) return(ccxdt[-unique(badIdxs)])
-    return(ccxdt)
-
-}
-
 # formatFeatures <- function(ccxdt, vars2format) {
 
 #     novarVars <- c()

@@ -12,6 +12,9 @@ cohort2xdt <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
     }
     xdt <- rbindlist(xdt)
 
+    xdt[, "mutcat" := stringi::stri_join(kmer, ">", mut)]
+    xdt[, ':=' ("kmer" = NULL, "mut" = NULL, "start" = NULL, "rangeid" = NULL)]
+
     return(xdt)
 
 }
@@ -50,6 +53,8 @@ xdt2monoGLMMTMB <- function(xdt, .cond) {
 
     }
 
+    .REML <- FALSE
+    if (any(grepl("[|]", as.character(.cond)))) .REML <- TRUE
     model <- glmmTMB::glmmTMB(
         .cond,
         xdt,
@@ -68,4 +73,5 @@ xdt2monoGLMMTMB <- function(xdt, .cond) {
     return(model)
 
 }
+
 
