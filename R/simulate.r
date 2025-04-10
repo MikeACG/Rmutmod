@@ -179,7 +179,7 @@ coefSim <- function(tmb, .n, reList) {
     }
 
     simCoefs <- new_MonoMAFglmmTMBsim(
-        "fixef" = t(MASS::mvrnorm(.n, glmmTMB::fixef(tmb)$cond, vcov(tmb)$cond)),
+        "fixef" = fixefsSim(tmb, .n),
         "ranef" = .ranef,
         "sigma" = glmmTMB::sigma(tmb),
         "cformula" = paste("~", as.character(formula(tmb, fixed.only = TRUE))[3]),
@@ -189,6 +189,21 @@ coefSim <- function(tmb, .n, reList) {
     )
 
     return(simCoefs)
+
+}
+
+fixefsSim <- function(tmb, .n, simEstimation = FALSE) {
+
+    .means <- glmmTMB::fixef(tmb)$cond
+    if (simEstimation) {
+
+        .fixef <- t(MASS::mvrnorm(.n, .means, vcov(tmb)$cond))
+        return(.fixef)
+
+    }
+
+    attr(.means, "n") <- .n
+    return(.means)
 
 }
 
@@ -258,7 +273,16 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
 
     # fixed-effects linear predictor with offset
     #FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
-    FLP <- eigenMapMatMult(model.matrix(simCoefs$cformula, snpdt), simCoefs$fixef)
+    if (is.null(simCoefs$fixef)) { # vector
+
+        FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
+        FLP <- matrix(rep(FLP, attr(simCoefs$fixef, "n")), nrow = nrow(snpdt), ncol = attr(simCoefs$fixef, "n"))
+
+    } else { # matrix
+
+        FLP <- eigenMapMatMult(model.matrix(simCoefs$cformula, snpdt), simCoefs$fixef)
+
+    }
     mu <- FLP + snpdt$logchance
 
     # if there are random effects
