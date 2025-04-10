@@ -273,7 +273,7 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
 
     # fixed-effects linear predictor with offset
     #FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
-    if (is.null(simCoefs$fixef)) { # vector
+    if (is.null(dim(simCoefs$fixef))) { # vector
 
         FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
         FLP <- matrix(rep(FLP, attr(simCoefs$fixef, "n")), nrow = nrow(snpdt), ncol = attr(simCoefs$fixef, "n"))
