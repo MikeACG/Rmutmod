@@ -151,7 +151,7 @@ mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 }
 
 #' @export
-coefSim <- function(tmb, .n, reList) {
+coefSim <- function(tmb, .n, reList, simEstimation = FALSE) {
 
     # get levels of variables
     flevels <- lapply(tmb$frame, levels)
@@ -179,7 +179,7 @@ coefSim <- function(tmb, .n, reList) {
     }
 
     simCoefs <- new_MonoMAFglmmTMBsim(
-        "fixef" = fixefsSim(tmb, .n),
+        "fixef" = fixefsSim(tmb, .n, simEstimation),
         "ranef" = .ranef,
         "sigma" = glmmTMB::sigma(tmb),
         "cformula" = paste("~", as.character(formula(tmb, fixed.only = TRUE))[3]),
@@ -192,7 +192,7 @@ coefSim <- function(tmb, .n, reList) {
 
 }
 
-fixefsSim <- function(tmb, .n, simEstimation = FALSE) {
+fixefsSim <- function(tmb, .n, simEstimation) {
 
     .means <- glmmTMB::fixef(tmb)$cond
     if (simEstimation) {
@@ -304,7 +304,8 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
     }
 
     # add dispersion variance
-    LP <- rdisp(mu, simCoefs$sigma, ncol(mu))
+    #LP <- rdisp(exp(mu), simCoefs$sigma, ncol(mu))
+    LP <- exp(mu)
 
     # return with identifiers to later reorder matrix
     rownames(LP) <- snpdt$id
