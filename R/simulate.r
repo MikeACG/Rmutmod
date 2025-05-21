@@ -304,8 +304,8 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
     }
 
     # add dispersion variance
-    #LP <- rdisp(exp(mu), simCoefs$sigma, ncol(mu))
-    LP <- exp(mu)
+    LP <- rdisp(exp(mu), simCoefs$sigma, ncol(mu))
+    #LP <- exp(mu)
 
     # return with identifiers to later reorder matrix
     rownames(LP) <- snpdt$id
