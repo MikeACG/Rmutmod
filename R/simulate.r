@@ -267,6 +267,7 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt, dispersion = FALS
     if (is.null(dim(simCoefs$fixef))) { # vector
 
         FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
+        FLP <- FLP[, 1]
         
     } else { # matrix
 
