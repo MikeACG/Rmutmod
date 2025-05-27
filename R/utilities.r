@@ -149,3 +149,19 @@ varTargetFilter <- function(xdt, modvars, minTarget) {
     return(xdt)
 
 }
+
+#' @export
+dtchar2factor <- function(.dt, flevels) {
+
+    for (jj in 1:length(flevels)) {
+
+        v <- names(flevels)[jj]
+        if (length(flevels[[jj]]) > 0) {
+            .dt[, (v) := factor(as.character(get(v)), flevels[[jj]])]
+        }
+
+    }
+
+    return()
+
+}

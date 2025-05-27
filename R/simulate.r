@@ -249,7 +249,6 @@ ranefSim <- function(relevels, condMean, condVar, .n) {
 
 }
 
-
 #' @export
 linearPredictor <- function(x, ...) {
 
@@ -258,32 +257,25 @@ linearPredictor <- function(x, ...) {
 }
 
 #' @export
-linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
+linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt, dispersion = FALSE) {
 
     # format fixed-effect features correctly
-    flevels <- simCoefs$flevels
-    for (jj in 1:length(flevels)) {
-
-        v <- names(flevels)[jj]
-        if (length(flevels[[jj]]) > 0) {
-            snpdt[, (v) := factor(as.character(get(v)), flevels[[jj]])]
-        }
-
-    }
+    dtchar2factor(snpdt, simCoefs$flevels)
 
     # fixed-effects linear predictor with offset
     #FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
     if (is.null(dim(simCoefs$fixef))) { # vector
 
         FLP <- model.matrix(simCoefs$cformula, snpdt) %*% simCoefs$fixef
-        FLP <- matrix(rep(FLP, attr(simCoefs$fixef, "n")), nrow = nrow(snpdt), ncol = attr(simCoefs$fixef, "n"))
-
+        
     } else { # matrix
 
         FLP <- eigenMapMatMult(model.matrix(simCoefs$cformula, snpdt), simCoefs$fixef)
+        rownames(FLP) <- snpdt$id # identifiers to later reorder matrix
 
     }
     mu <- FLP + snpdt$logchance
+    rm(FLP)
 
     # if there are random effects
     if (length(simCoefs$ranef) > 0) {
@@ -303,13 +295,18 @@ linearPredictor.MonoMAFglmmTMBsim <- function(simCoefs, snpdt) {
 
     }
 
-    # add dispersion variance
-    LP <- rdisp(exp(mu), simCoefs$sigma, ncol(mu))
-    #LP <- exp(mu)
+    n <- attr(simCoefs$fixef, "n")
+    mu <- exp(mu)
+    if (dispersion) { # add dispersion variance
+    
+        if (is.null(dim(mu))) mu <- matrix(rep(mu, n, nrow = nrow(snpdt), ncol = n))
+        mu <- rdisp(mu, simCoefs$sigma, ncol(mu))
+        rownames(mu) <- snpdt$id # identifiers to later reorder matrix
 
-    # return with identifiers to later reorder matrix
-    rownames(LP) <- snpdt$id
-    return(LP)
+    }
+
+    attr(mu, "n") <- n
+    return(mu)
 
 }
 
