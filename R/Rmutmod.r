@@ -90,7 +90,7 @@ maf2mutdt <- function(mafdb, cohort, .chr, nflank, genome, extraCols = c()) {
 
     # load mutations without flagged records
     cols <- c(setNames(c("Start_Position", "Tumor_Seq_Allele2"), c("start", "mut")), extraCols)
-    mafdt <- mafLoad(mafdb, cols, .chr, cohort, flaggedMuts = "no")
+    mafdt <- mafLoad(mafdb, cols, .chr, cohort)
 
     # if no mutations return 0 counts for all categories
     mutdt <- data.table::data.table(start = integer(0), kmer = character(0), mut = character(0), Cohort = character(0))
