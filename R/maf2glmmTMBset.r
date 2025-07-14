@@ -1,6 +1,7 @@
 #' @import data.table
 #' @importFrom dplyr %>%
 
+#' @export
 chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs) {
 
     # get kmers of target sites and mutations
@@ -47,35 +48,21 @@ chrom2mafDesign <- function(.chr, mafdb, targetdb, genomePath, nflank, fdirs) {
 }
 
 #' @export
-files4monoGLMMTMB <- function(mafdb, k, targetdb, genomePaths, chrs, fdirs) {
-
-    # create directory for temporal files to avoid using a lot of memory
-    tmpdir <- paste0("./", basename(tempdir()), "/")
-    if (file.exists(tmpdir)) unlink(tmpdir, recursive = TRUE)
-    dir.create(tmpdir)
-
+maf2mafDesign <- function(mafdb, k, targetdb, genomePaths, chrs, fdirs) {
+    
     nflank <- (k - 1) / 2
     icenter <- nflank + 1
+    ccxdt <- list()
     for (ii in 1:length(chrs)) {
 
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
         # get possible mutations in this chromosome and observed mutation counts
-        ccxdt <- chrom2mafDesign(chrs[ii], mafdb, targetdb, genomePaths[ii], nflank, fdirs)
-
-        # save to disk by mononucleotide substitution type
-        ccxdt <- split(ccxdt, paste(substr(ccxdt$kmer, icenter, icenter), ccxdt$mut, sep = "_"))
-        mapply(
-            data.table::fwrite,
-            ccxdt,
-            paste0(tmpdir, names(ccxdt), ".tmp"),
-            MoreArgs = list(sep = "\t", append = TRUE, nThread = 1)
-        )
-        rm(ccxdt); gc()
+        ccxdt[[ii]] <- Rmutmod:::chrom2mafDesign(chrs[ii], mafdb, targetdb, genomePaths[ii], nflank, fdirs)
 
     }
 
-    return(tmpdir)
+    return(ccxdt)
 
 }
 
@@ -182,28 +169,4 @@ getMAFntumors <- function(mafdb) {
 
 }
 
-# formatFeatures <- function(ccxdt, vars2format) {
-
-#     novarVars <- c()
-#     for (jj in 1:length(vars2format)) {
-
-#         v <- vars2format[jj]
-#         if (is.factor(ccxdt[[v]]) | is.character(ccxdt[[v]])) {
-
-#             ccxdt[, (v) := factor(as.character(get(v)))]
-#             check <- length(levels(ccxdt[[v]])) > 1
-
-#         } else { # numeric or integer
-
-#             check <- var(ccxdt[[v]]) > 0
-
-#         }
-
-#         if (!check) novarVars <- c(novarVars, v)
-
-#     }
-
-#     return(novarVars)
-
-# }
 

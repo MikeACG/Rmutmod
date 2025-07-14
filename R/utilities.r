@@ -130,9 +130,7 @@ synonymifyTarget <- function(sitedt, cdsgtfdt, .genome) {
 }
 
 #' @export
-varTargetFilter <- function(xdt, modvars, minTarget) {
-
-    isAggregated <- "nchance" %in% modvars
+varTargetFilter <- function(xdt, modvars, minTarget, isAggregated = FALSE) {
 
     badIdxs <- c()
     for (v in modvars) {

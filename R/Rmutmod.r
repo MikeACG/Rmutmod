@@ -18,7 +18,7 @@ makePcats <- function(pkmers, nflank) {
 }
 
 #' @export
-mafLoad <- function(mafdb, .cols, .chr = "all", cohort = "all", .vartype = "all", flaggedMuts = "yes", utx = "all") {
+mafLoad <- function(mafdb, .cols, .chr = "all", cohort = "all", .vartype = "all", utx = "all") {
 
     chrQuery <- mafdb %>% dplyr::filter(Chromosome %in% .chr)
     if (.chr[1] == "all") chrQuery <- mafdb
@@ -31,7 +31,7 @@ mafLoad <- function(mafdb, .cols, .chr = "all", cohort = "all", .vartype = "all"
     if (.vartype[1] == "exonic") vartypeQuery <- cohortQuery %>% dplyr::filter(!is.na(Variant_Classification))
 
     excludeQuery <- vartypeQuery
-    if (flaggedMuts == "no") excludeQuery <- vartypeQuery %>% dplyr::filter(modelExclude == FALSE) 
+    #if (flaggedMuts == "no") excludeQuery <- vartypeQuery %>% dplyr::filter(modelExclude == FALSE) 
 
     txQuery <- excludeQuery %>% dplyr::filter(Transcript_ID %in% utx)
     if (utx[1] == "all") txQuery <- excludeQuery
