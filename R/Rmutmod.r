@@ -131,22 +131,31 @@ dtcount <- function(.dt, pvl, cname) {
 
 }
 
-chrom2matrix <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, pkmers, fdirs, fplabs) {
+chrom2matrix <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, fdirs) {
 
     genome <- setNames(Biostrings::readDNAStringSet(genomePath), .chr)
-    tkmerdt <- target2kmerdt(targetdb, .chr, nflank, genome)
+    xdt <- target2xdt(targetdb, .chr, nflank, genome)
     mutdt <- maf2mutdt(mafdb, cohort, .chr, nflank, genome)
     rm(genome)
 
-    addFeatures(fdirs, .chr, tkmerdt, mutdt)
+    # ensure the observed mutations are falling in the specified target
+    mutdt[xdt, "rangeid" := i.rangeid, on = c("start", "mut")]
+    mutdt <- mutdt[!is.na(rangeid)]
 
-    pAbu <- append(list("kmer" = pkmers), fplabs)
-    abudt <- dtcount(tkmerdt, pAbu, "abundance")
+    # add the model features to each possible mutation in the target and observed mutations
+    addFeatures(fdirs, .chr, xdt, mutdt)
+    xdt <- xdt[complete.cases(xdt)]
 
-    pMut <- append(list("mut" = c("A", "C", "G", "T")), pAbu)
-    matrixdt <- dtcount(mutdt, pMut, "n")
-
-    matrixdt[abudt, "abundance" := i.abundance, on = names(pAbu)]
+    # count chances and mutations
+    .fnames <- c("kmer", "mut", names(fdirs))
+    mdt <- xdt[, list("nchance" = .N), by = .fnames]
+    mdt[
+        mutdt[, list("nmut" = .N), by = .fnames],
+        "nmut" := i.nmut,
+        on = .fnames
+    ]
+    mdt[is.na(nmut), "nmut" := 0L]
+    
     return(matrixdt)
 
 }
@@ -198,45 +207,32 @@ adjustByGender <- function(abundance, .chrs, mafdb, cohort) {
 }
  
 #' @export
-trainMutMat <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fplabs) {
+trainMutMat <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
 
-    pkmers <- makePkmers(k)
     nflank <- (k - 1) / 2
-    mafdb <- arrow::open_dataset(mafdir)
-    targetdb <- arrow::open_dataset(targetdir)
-    genomePaths <- paste0(genomedir, chrs, ".fasta")
     matrixdt <- list()
     for (ii in 1:length(chrs)) {
 
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
-        matrixdt[[ii]] <- chrom2matrix(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs, fplabs)
+        matrixdt[[ii]] <- chrom2matrix(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs)
 
     }
     nrchr <- sapply(matrixdt, nrow)
     matrixdt <- data.table::rbindlist(matrixdt)
     matrixdt[, "seqnames" := rep(chrs, nrchr)]
 
-    # drop mutation count entries with same ref and mut (no mutation)
-    icenter <- nflank + 1
-    matrixdt[, "ref" := substr(kmer, icenter, icenter)]
-    matrixdt <- matrixdt[ref != mut]
-
-    # remaining NA entries are non-found mutations or abundances, should be 0
-    matrixdt[is.na(n), "n" := 0L]
-    matrixdt[is.na(abundance), "abundance" := 0L]
-    
     # get gender-adjusted abundances aggregated across chromosomes
-    matrixdt[, "abundance.adj" := adjustByGender(abundance, seqnames, mafdb, cohort)]
+    #matrixdt[, "abundance.adj" := adjustByGender(abundance, seqnames, mafdb, cohort)]
     #matrixdt[, "abundance.adj" := abundance]
 
     # aggregate across chromosomes, get mutation rate
     matrixdt <- matrixdt[
         ,
-        list("n" = sum(n), "abundance.adj" = sum(abundance.adj)),
-        by = c("ref", "kmer", "mut", names(fplabs))
+        list("nmut" = sum(nmut), "nchance" = sum(nchance)),
+        by = c("kmer", "mut", names(fplabs))
     ]
-    matrixdt[, "mutRate" := n / abundance.adj]
+    matrixdt[, "density" := nmut / nchance]
 
     # make mutational matrix object
     mutMatrix <- new_MutMatrix(
@@ -247,8 +243,7 @@ trainMutMat <- function(mafdir, cohort, k, targetdir, genomedir, chrs, fdirs, fp
         targetdir,
         genomedir,
         chrs,
-        fdirs,
-        fplabs
+        fdirs
     )
 
     return(mutMatrix)

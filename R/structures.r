@@ -6,8 +6,7 @@ new_MutMatrix <- function(
     targetdir = character(1L),
     genomedir = character(1L),
     chrs = character(0L),
-    fdirs = setNames(character(0L), character(0L)),
-    fplabs = setNames(list(), character(0L))
+    fdirs = setNames(character(0L), character(0L))
 ) {
 
     mutMatrix <- structure(
@@ -19,8 +18,7 @@ new_MutMatrix <- function(
             targetdir = targetdir,
             genomedir = genomedir,
             chrs = chrs,
-            fdirs = fdirs,
-            fplabs = fplabs
+            fdirs = fdirs
         ),
         class = c("Rmutmod", "MutMatrix")
     )
@@ -32,7 +30,7 @@ new_MutMatrix <- function(
 validate_MutMatrix <- function(mutMatrix) {
 
     if (!("data.table" %in% class(mutMatrix$modeldt))) stop("model must be a data.table")
-    .mcols <- c("kmer", "ref", "mut", "n", "abundance.adj", "mutRate")
+    .mcols <- c("kmer", "mut", "nmut", "nchance", "density")
 
     # check mandatory character columns
     if (!(.mcols[1:3] %in% names(mutMatrix$modeldt))) stop("missing columns in model")
