@@ -156,7 +156,7 @@ chrom2matrix <- function(.chr, mafdb, cohort, targetdb, genomePath, nflank, fdir
     ]
     mdt[is.na(nmut), "nmut" := 0L]
     
-    return(matrixdt)
+    return(mdt)
 
 }
 
