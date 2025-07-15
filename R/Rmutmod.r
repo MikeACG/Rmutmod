@@ -230,7 +230,7 @@ trainMutMat <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
     matrixdt <- matrixdt[
         ,
         list("nmut" = sum(nmut), "nchance" = sum(nchance)),
-        by = c("kmer", "mut", names(fplabs))
+        by = c("kmer", "mut", names(fdirs))
     ]
     matrixdt[, "density" := nmut / nchance]
 
