@@ -215,7 +215,7 @@ trainMutMat <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
 
         cat(ii, "/", length(chrs), "...\n", sep = "")
 
-        matrixdt[[ii]] <- chrom2matrix(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, pkmers, fdirs)
+        matrixdt[[ii]] <- chrom2matrix(chrs[ii], mafdb, cohort, targetdb, genomePaths[ii], nflank, fdirs)
 
     }
     nrchr <- sapply(matrixdt, nrow)
