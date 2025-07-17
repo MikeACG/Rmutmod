@@ -343,7 +343,7 @@ featureLevels.MutMatrix <- function(mutMatrix) {
     modeldt <- Rmutmod::modelGet(mutMatrix)
     flevels <- lapply(features, function(f) unique(modeldt[[f]]))
 
-    return(flevels)
+    return(setNames(flevels, features))
 
 }
 
