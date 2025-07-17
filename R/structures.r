@@ -329,3 +329,29 @@ fdirsGet.Rmutmod <- function(rmutmod) {
 
 }
 
+#' @export
+featureLevels <- function(x) {
+
+    UseMethod("featureLevels", x)
+
+}
+
+#' @export
+featureLevels.MutMatrix <- function(mutMatrix) {
+
+    features <- c("kmer", names(Rmutmod::fdirsGet(mutMatrix)))
+    modeldt <- Rmutmod::modelGet(mutMatrix)
+    flevels <- lapply(features, function(f) unique(modeldt[[f]]))
+
+    return(flevels)
+
+}
+
+#' @export
+featureLevels.MonoMAFglmmTMB <- function(monoMAFglmmTMB) {
+
+    flevels <- lapply(Rmutmod::modelGet(monoMAFglmmTMB)$frame, levels)
+
+    return(flevels)
+
+}
