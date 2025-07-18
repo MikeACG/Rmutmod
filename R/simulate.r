@@ -78,7 +78,7 @@ mod2sim.MutMatrix <- function(mutMatrix, .n) {
     
     mutMatrixSim <- new_MutMatrixSim(
         modelGet(mutMatrix),
-        featureLevels(mutMatrix),
+        names(featureLevels(mutMatrix)),
         .n
     )
 
