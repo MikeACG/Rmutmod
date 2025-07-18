@@ -137,7 +137,7 @@ new_MonoMAFglmmTMBsim <- function(
             "rformulas" = rformulas,
             "flevels" = flevels
         ),
-        class = c("MonoMAFglmmTMBsim")
+        class = c("Rmutsim", "MonoMAFglmmTMBsim")
     )
 
     return(monoMAFglmmTMBsim)
@@ -158,6 +158,25 @@ new_MultiMAFglmmTMBsim <- function(
     )
 
     return(multiMAFglmmTMBsim)
+
+}
+
+new_MutMatrixSim <- function(
+    fixef = data.table::data.table(),
+    features = character(0),
+    n = integer(1)
+) {
+
+    mutMatrixSim <- structure(
+        list(
+            "fixef" = fixef,
+            "features" = features,
+            "n" = n
+        ),
+        class = c("Rmutsim", "MutMatrixSim")
+    )
+
+    return(mutMatrixSim)
 
 }
 

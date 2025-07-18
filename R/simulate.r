@@ -74,6 +74,20 @@ mod2sim <- function(x, ...) {
 }
 
 #' @export
+mod2sim.MutMatrix <- function(mutMatrix, .n) {
+    
+    mutMatrixSim <- new_MutMatrixSim(
+        modelGet(mutMatrix),
+        featureLevels(mutMatrix),
+        .n
+    )
+
+    return(mutMatrixSim)
+
+}
+
+
+#' @export
 mod2sim.MonoMAFglmmTMB <- function(monoMAFglmmTMB, .n, pmutdt) {
     
     # load model and determine the random efects used for current mononucleotide substitution to avoid unnecessary simulations
