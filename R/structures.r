@@ -20,7 +20,7 @@ new_MutMatrix <- function(
             chrs = chrs,
             fdirs = fdirs
         ),
-        class = c("Rmutmod", "MutMatrix")
+        class = c("MutMatrix", "Rmutmod")
     )
 
     return(mutMatrix)
@@ -81,7 +81,7 @@ new_MultiMAFglmmTMB <- function(
             fdirs = fdirs,
             cohort = cohort
         ),
-        class = c("Rmutmod", "MultiMAFglmmTMB")
+        class = c("MultiMAFglmmTMB", "Rmutmod")
     )
 
     return(multiMAFglmmTMB)
@@ -110,7 +110,7 @@ new_MonoMAFglmmTMB <- function(
             fdirs = fdirs,
             cohort = cohort
         ),
-        class = c("Rmutmod", "MonoMAFglmmTMB")
+        class = c("MonoMAFglmmTMB", "Rmutmod")
     )
 
     return(monoMAFglmmTMB)
@@ -137,7 +137,7 @@ new_MonoMAFglmmTMBsim <- function(
             "rformulas" = rformulas,
             "flevels" = flevels
         ),
-        class = c("Rmutsim", "MonoMAFglmmTMBsim")
+        class = c("MonoMAFglmmTMBsim", "Rmutsim")
     )
 
     return(monoMAFglmmTMBsim)
@@ -154,7 +154,7 @@ new_MultiMAFglmmTMBsim <- function(
             "sims" = sims,
             "nsims" = nsims
         ),
-        class = c("Rmutsim", "MultiMAFglmmTMBsim")
+        class = c("MultiMAFglmmTMBsim", "Rmutsim")
     )
 
     return(multiMAFglmmTMBsim)
@@ -173,7 +173,7 @@ new_MutMatrixSim <- function(
             "features" = features,
             "n" = n
         ),
-        class = c("Rmutsim", "MutMatrixSim")
+        class = c("MutMatrixSim", "Rmutsim")
     )
 
     return(mutMatrixSim)
