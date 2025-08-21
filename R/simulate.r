@@ -122,7 +122,7 @@ mod2sim.MonoMAFglmmTMB <- function(monoMAFglmmTMB, .n, pmutdt) {
 mod2sim.MultiMAFglmmTMB <- function(multiMAFglmmTMB, .n, pmutdt) {
 
     tmbPaths <- modelPathsGet(multiMAFglmmTMB)
-    snpTypes <- lapply(strsplit(names(tmbPaths), "[.]"), setNames, c("ref", "mut"))
+    snpTypes <- lapply(strsplit(names(tmbPaths), "_"), setNames, c("ref", "mut"))
     simCoefList <- list()
     for (jj in 1:length(tmbPaths)) {
 

@@ -374,3 +374,28 @@ featureLevels.MonoMAFglmmTMB <- function(monoMAFglmmTMB) {
     return(flevels)
 
 }
+
+#' @export
+featureLevels.MultiMAFglmmTMB <- function(multiMAFglmmTMB) {
+
+    modelPaths <- modelPathsGet(multiMAFglmmTMB)
+    fdt <- list()
+    for (ii in 1:length(modelPaths)) {
+
+        model <- readRDS(modelPaths[ii])
+        flevels <- lapply(model$frame, levels)
+        fdt[[ii]] <- data.table::data.table(
+            "feature" = rep(names(flevels), sapply(flevels, length)),
+            "level" = unlist(flevels)
+        )
+        rm(model)
+
+    }
+    fdt <- data.table::rbindlist(fdt)
+
+    fdt <- fdt[, list("level" = unique(level)), by = "feature"]
+    flist <- split(fdt$level, fdt$feature)
+
+    return(flist)
+
+}

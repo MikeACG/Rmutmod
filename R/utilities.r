@@ -1,3 +1,16 @@
+expandMuts <- function(sitedt, nflank) {
+
+    icenter <- nflank + 1
+    sitedt[, "ref" := substr(kmer, icenter, icenter)]
+    pmuts <- list("C" = c("A", "G", "T"), "T" = c("A", "C", "G"))[sitedt$ref]
+    xdt <- sitedt[rep(1:nrow(sitedt), each = 3L)]
+    xdt[, "mut" := unlist(pmuts, recursive = FALSE, use.names = FALSE)]
+
+    sitedt[, "ref" := NULL]
+    return(xdt)
+
+}
+
 #' @export
 ranges2kmerdt <- function(.start, .end, .chr, nflank, genome) {
 

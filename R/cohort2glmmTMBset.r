@@ -22,11 +22,6 @@ cohort2xdt <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
 #' @export
 cohort2files <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
 
-    # create directory for temporal files to avoid using a lot of memory
-    tmpdir <- paste0("./", basename(tempdir()), "/")
-    if (file.exists(tmpdir)) unlink(tmpdir, recursive = TRUE)
-    dir.create(tmpdir)
-
     nflank <- (k - 1) / 2
     icenter <- nflank + 1
     for (ii in 1:length(chrs)) {
@@ -43,6 +38,7 @@ cohort2files <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
 
 }
 
+
 #' @export
 xdt2monoGLMMTMB <- function(xdt, .cond) {
 
@@ -58,11 +54,11 @@ xdt2monoGLMMTMB <- function(xdt, .cond) {
     model <- glmmTMB::glmmTMB(
         .cond,
         xdt,
-        glmmTMB::nbinom2(),
+        poisson(),
         dispformula = ~ 1,
-        sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = TRUE),
+        sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = FALSE),
         control = glmmTMB::glmmTMBControl(
-            optCtrl = list(iter.max = 10000, eval.max = 10000),
+            optCtrl = list(iter.max = 100000, eval.max = 100000),
             #optimizer = optim,
             #optArgs = list(method = "BFGS")
         ),
