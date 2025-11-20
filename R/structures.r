@@ -67,7 +67,8 @@ new_MultiMAFglmmTMB <- function(
     genomedir = character(1),
     chrs = character(0),
     fdirs = setNames(character(0), character(0)),
-    cohort = character(1)
+    cohort = character(1),
+    mutMatrix = new_MutMatrix()
 ) {
 
     multiMAFglmmTMB <- structure(
@@ -79,7 +80,8 @@ new_MultiMAFglmmTMB <- function(
             genomedir = genomedir,
             chrs = chrs,
             fdirs = fdirs,
-            cohort = cohort
+            cohort = cohort,
+            mutMatrix = mutMatrix
         ),
         class = c("MultiMAFglmmTMB", "Rmutmod")
     )

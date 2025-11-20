@@ -12,8 +12,8 @@ cohort2xdt <- function(mafdb, cohort, k, targetdb, genomePaths, chrs, fdirs) {
     }
     xdt <- rbindlist(xdt)
 
-    xdt[, "mutcat" := stringi::stri_join(kmer, ">", mut)]
-    xdt[, ':=' ("kmer" = NULL, "mut" = NULL, "start" = NULL, "rangeid" = NULL)]
+    #xdt[, "mutcat" := stringi::stri_join(kmer, ">", mut)]
+    #xdt[, ':=' ("kmer" = NULL, "mut" = NULL, "start" = NULL, "rangeid" = NULL)]
 
     return(xdt)
 
@@ -54,7 +54,7 @@ xdt2monoGLMMTMB <- function(xdt, .cond) {
     model <- glmmTMB::glmmTMB(
         .cond,
         xdt,
-        poisson(),
+        glmmTMB::nbinom2(),
         dispformula = ~ 1,
         sparseX = c("cond" = TRUE, "zi" = FALSE, "disp" = FALSE),
         control = glmmTMB::glmmTMBControl(
