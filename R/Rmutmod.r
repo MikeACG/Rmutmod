@@ -309,6 +309,17 @@ mutdesign.MonoMAFglmmTMB <- function(rmutmod, rangedt, .chr) {
 
 }
 
+#' @export
+mutdesign.MultiMAFglmmTMB <- function(multiMAFglmmTMB, rangedt, .chr) {
+
+    xdt <- mutdesignBase(multiMAFglmmTMB, rangedt, .chr)
+    mutMatrix <- mutMatrixGet(multiMAFglmmTMB)
+    xdt[mutMatrix$modeldt, "target" := i.density, on = c("kmer", "mut", fdirsGet(mutMatrix))]
+
+    return(xdt)
+
+}
+
 mutdesignBase <- function(rmutmod, rangedt, .chr) {
 
     genomeDir <- genomedirGet(rmutmod)

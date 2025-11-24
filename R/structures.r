@@ -83,7 +83,7 @@ new_MultiMAFglmmTMB <- function(
             cohort = cohort,
             mutMatrix = mutMatrix
         ),
-        class = c("MultiMAFglmmTMB", "Rmutmod")
+        class = c("MultiMAFglmmTMB", "MAFglmmTMB", "Rmutmod")
     )
 
     return(multiMAFglmmTMB)
@@ -112,7 +112,7 @@ new_MonoMAFglmmTMB <- function(
             fdirs = fdirs,
             cohort = cohort
         ),
-        class = c("MonoMAFglmmTMB", "Rmutmod")
+        class = c("MonoMAFglmmTMB", "MAFglmmTMB", "Rmutmod")
     )
 
     return(monoMAFglmmTMB)
@@ -182,6 +182,19 @@ new_MutMatrixSim <- function(
 
 }
 
+#' @export
+mutMatrixGet <- function(x) {
+
+    UseMethod("mutMatrixGet", x)
+
+}
+
+#' @export
+mutMatrixGet.MAFglmmTMB <- function(mafGLMMTMB) {
+
+    return(mafGLMMTMB$mutMatrix)
+
+}
 
 #' @export
 modelPathsGet <- function(x) {
