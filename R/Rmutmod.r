@@ -300,21 +300,11 @@ mutdesign.default <- function(rmutmod, rangedt, .chr) {
 }
 
 #' @export
-mutdesign.MonoMAFglmmTMB <- function(rmutmod, rangedt, .chr) {
+mutdesign.MAFglmmTMB <- function(mafGLMMTMB, rangedt, .chr) {
 
-    xdt <- mutdesignBase(rmutmod, rangedt, .chr)
-    xdt[, "mutcat" := stringi::stri_join(kmer, mut, sep = ">")]
-
-    return(xdt)
-
-}
-
-#' @export
-mutdesign.MultiMAFglmmTMB <- function(multiMAFglmmTMB, rangedt, .chr) {
-
-    xdt <- mutdesignBase(multiMAFglmmTMB, rangedt, .chr)
-    mutMatrix <- mutMatrixGet(multiMAFglmmTMB)
-    xdt[mutMatrix$modeldt, "target" := i.density, on = c("kmer", "mut", fdirsGet(mutMatrix))]
+    xdt <- mutdesignBase(mafGLMMTMB, rangedt, .chr)
+    mutMatrix <- mutMatrixGet(mafGLMMTMB)
+    xdt[modelGet(mutMatrix), "logchance" := log(i.density), on = c("kmer", "mut", names(fdirsGet(mutMatrix)))]
 
     return(xdt)
 

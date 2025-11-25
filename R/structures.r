@@ -61,26 +61,16 @@ validate_MutMatrix <- function(mutMatrix) {
 
 new_MultiMAFglmmTMB <- function(
     modelPaths = character(6),
-    mafdir = character(1),
-    k = integer(1),
-    targetdir = character(1),
-    genomedir = character(1),
-    chrs = character(0),
     fdirs = setNames(character(0), character(0)),
-    cohort = character(1),
+    flevels = list(),
     mutMatrix = new_MutMatrix()
 ) {
 
     multiMAFglmmTMB <- structure(
         list(
             modelPaths = modelPaths,
-            mafdir = mafdir,
-            k = k,
-            targetdir = targetdir,
-            genomedir = genomedir,
-            chrs = chrs,
             fdirs = fdirs,
-            cohort = cohort,
+            flevels = flevels,
             mutMatrix = mutMatrix
         ),
         class = c("MultiMAFglmmTMB", "MAFglmmTMB", "Rmutmod")
@@ -218,9 +208,16 @@ kGet <- function(x) {
 }
 
 #' @export
-kGet.Rmutmod <- function(rmutmod) {
+kGet.MutMatrix <- function(mutMatrix) {
 
-    return(rmutmod$k)
+    return(mutMatrix$k)
+
+}
+
+#' @export
+kGet.MAFglmmTMB <- function(mafGLMMTMB) {
+
+    return(kGet(mutMatrixGet(mafGLMMTMB)))
 
 }
 
@@ -232,9 +229,16 @@ targetdirGet <- function(x) {
 }
 
 #' @export
-targetdirGet.Rmutmod <- function(rmutmod) {
+targetdirGet.MutMatrix <- function(mutMatrix) {
 
-    return(rmutmod$targetdir)
+    return(mutMatrix$targetdir)
+
+}
+
+#' @export
+targetdirGet.MAFglmmTMB <- function(mafGLMMTMB) {
+
+    return(targetdirGet(mutMatrixGet(mafGLMMTMB)))
 
 }
 
@@ -301,9 +305,16 @@ genomedirGet <- function(x) {
 }
 
 #' @export
-genomedirGet.Rmutmod <- function(rmutmod) {
+genomedirGet.MutMatrix <- function(mutMatrix) {
 
-    return(rmutmod$genomedir)
+    return(mutMatrix$genomedir)
+
+}
+
+#' @export
+genomedirGet.MAFglmmTMB <- function(mafGLMMTMB) {
+
+    return(genomedirGet(mutMatrixGet(mafGLMMTMB)))
 
 }
 
@@ -315,9 +326,16 @@ mafdirGet <- function(x) {
 }
 
 #' @export
-mafdirGet.Rmutmod <- function(rmutmod) {
+mafdirGet.MutMatrix <- function(mutMatrix) {
 
-    return(rmutmod$mafdir)
+    return(mutMatrix$mafdir)
+
+}
+
+#' @export
+mafdirGet.MAFglmmTMB <- function(mafGLMMTMB) {
+
+    return(mafdirGet(mutMatrixGet(mafGLMMTMB)))
 
 }
 
@@ -329,9 +347,16 @@ cohortGet <- function(x) {
 }
 
 #' @export
-cohortGet.Rmutmod <- function(rmutmod) {
+cohortGet.MutMatrix <- function(mutMatrix) {
 
-    return(rmutmod$cohort)
+    return(mutMatrix$cohort)
+
+}
+
+#' @export
+cohortGet.MAFglmmTMB <- function(mafGLMMTMB) {
+
+    return(cohortGet(mutMatrixGet(mafGLMMTMB)))
 
 }
 
@@ -343,9 +368,16 @@ chrsGet <- function(x) {
 }
 
 #' @export
-chrsGet.Rmutmod <- function(rmutmod) {
+chrsGet.MutMatrix <- function(mutMatrix) {
 
-    return(rmutmod$chrs)
+    return(mutMatrix$chrs)
+
+}
+
+#' @export
+chrsGet.MAFglmmTMB <- function(mafGLMMTMB) {
+
+    return(chrsGet(mutMatrixGet(mafGLMMTMB)))
 
 }
 
@@ -393,24 +425,6 @@ featureLevels.MonoMAFglmmTMB <- function(monoMAFglmmTMB) {
 #' @export
 featureLevels.MultiMAFglmmTMB <- function(multiMAFglmmTMB) {
 
-    modelPaths <- modelPathsGet(multiMAFglmmTMB)
-    fdt <- list()
-    for (ii in 1:length(modelPaths)) {
-
-        model <- readRDS(modelPaths[ii])
-        flevels <- lapply(model$frame, levels)
-        fdt[[ii]] <- data.table::data.table(
-            "feature" = rep(names(flevels), sapply(flevels, length)),
-            "level" = unlist(flevels)
-        )
-        rm(model)
-
-    }
-    fdt <- data.table::rbindlist(fdt)
-
-    fdt <- fdt[, list("level" = unique(level)), by = "feature"]
-    flist <- split(fdt$level, fdt$feature)
-
-    return(flist)
+    return(multiMAFglmmTMB$flevels)
 
 }
