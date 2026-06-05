@@ -279,9 +279,9 @@ kGet <- function(x) {
 }
 
 #' @export
-kGet.MutMatrix <- function(mutMatrix) {
+kGet.Rmutmod <- function(rmutmod) {
 
-    return(mutMatrix$k)
+    return(rmutmod$k)
 
 }
 
