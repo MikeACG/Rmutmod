@@ -375,3 +375,54 @@ rdisp <- function(mu, .sigma, .n) {
 
 }
 
+#' @export
+predict.Rmutmod <- function(rmutmod, xdt) {
+
+    model <- modelGet(rmutmod)
+    xdt[, "p" := useRmutmod(model, .SD)]
+
+    return()
+
+}
+
+#' @export
+useRmutmod <- function(x, ...) {
+
+    UseMethod("useRmutmod", x)
+
+}
+
+#' @export
+useRmutmod.RmutregList <- function(rmutregList, .xdt) {
+
+    tmpdt <- copy(.xdt)
+    tmpdt[, "idx" := 1:.N]
+    tmpdt <- split(tmpdt, by = c("kmer", "mut"))
+    names(tmpdt) <- sub("[.]", ">", names(tmpdt))
+
+    for (kk in 1:length(tmpdt)) {
+
+        mutcat <- names(tmpdt)[kk]
+        tmpdt[[mutcat]][, "p" := useRmutreg(rmutregList[[mutcat]], .SD)]
+
+    }
+    tmpdt <- rbindlist(tmpdt)[order(idx)]
+
+    return(tmpdt$p)
+
+}
+
+#' @export
+useRmutreg <- function(rmutreg, mcatdt) {
+
+    .formula <- formulaGet(rmutreg)
+    beta_hat <- coef(rmutreg)
+    sigma_hat <- sigma(rmutreg)
+
+    X <- model.matrix(.formula, mcatdt)
+    mu <- exp(X %*% beta_hat)
+    p <- (mu * sigma_hat) / (mu + sigma_hat)
+
+    return(p)
+
+}

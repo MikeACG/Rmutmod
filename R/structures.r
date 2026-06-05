@@ -59,6 +59,77 @@ validate_MutMatrix <- function(mutMatrix) {
 
 }
 
+new_Rmutmod <- function(
+    model = new_MutMatrix(),
+    mafdir = character(1L),
+    cohort = character(0L),
+    k = integer(1L),
+    targetdir = character(1L),
+    genomedir = character(1L),
+    chrs = character(0L),
+    fdirs = setNames(character(0L), character(0L))
+) {
+
+    rmutmod <- structure(
+        list(
+            "model" = model,
+            "mafdir" = mafdir,
+            "cohort" = cohort,
+            "k" = k,
+            "targetdir" = targetdir,
+            "genomedir" = genomedir,
+            "chrs" = chrs,
+            "fdirs" = fdirs
+        ),
+        class = "Rmutmod"
+    )
+
+    return(rmutmod)
+
+}
+
+new_Rmutreg <- function(
+    convergence = NA,
+    pdHess = NA,
+    beta_hat = numeric(),
+    sigma_hat = numeric(),
+    dataPath = character(1),
+    .formula = formula()
+) {
+
+    rmutreg <- structure(
+        list(
+            "convergence" = convergence,
+            "pdHess" = pdHess,
+            "beta_hat" = beta_hat,
+            "sigma_hat" = sigma_hat,
+            "dataPath" = dataPath,
+            "formula" = .formula
+        ),
+        class = "Rmutreg"
+    )
+
+    return(rmutreg)
+
+}
+
+new_RmutregList <- function(regsList) {
+
+    if (!all(sapply(regsList, function(reg) class(reg) == "Rmutreg"))) {
+
+        stop("Not all provided objects are of class Rmutreg")
+
+    }
+
+    rmutregList <- structure(
+        regsList,
+        class = "RmutregList"
+    )
+
+    return(rmutregList)
+
+}
+
 new_MultiMAFglmmTMB <- function(
     modelPaths = character(6),
     fdirs = setNames(character(0), character(0)),
@@ -305,9 +376,9 @@ genomedirGet <- function(x) {
 }
 
 #' @export
-genomedirGet.MutMatrix <- function(mutMatrix) {
+genomedirGet.Rmutmod <- function(rmutmod) {
 
-    return(mutMatrix$genomedir)
+    return(rmutmod$genomedir)
 
 }
 
@@ -326,9 +397,9 @@ mafdirGet <- function(x) {
 }
 
 #' @export
-mafdirGet.MutMatrix <- function(mutMatrix) {
+mafdirGet.Rmutmod <- function(rmutmod) {
 
-    return(mutMatrix$mafdir)
+    return(rmutmod$mafdir)
 
 }
 
@@ -347,9 +418,9 @@ cohortGet <- function(x) {
 }
 
 #' @export
-cohortGet.MutMatrix <- function(mutMatrix) {
+cohortGet.Rmutmod <- function(rmutmod) {
 
-    return(mutMatrix$cohort)
+    return(rmutmod$cohort)
 
 }
 
@@ -368,9 +439,9 @@ chrsGet <- function(x) {
 }
 
 #' @export
-chrsGet.MutMatrix <- function(mutMatrix) {
+chrsGet.Rmutmod <- function(rmutmod) {
 
-    return(mutMatrix$chrs)
+    return(rmutmod$chrs)
 
 }
 
