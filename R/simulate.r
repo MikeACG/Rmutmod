@@ -395,18 +395,12 @@ useRmutmod <- function(x, ...) {
 #' @export
 useRmutmod.RmutregList <- function(rmutregList, .xdt) {
 
-    tmpdt <- copy(.xdt)
-    tmpdt[, "idx" := 1:.N]
-    tmpdt <- split(tmpdt, by = c("kmer", "mut"))
-    names(tmpdt) <- sub("[.]", ">", names(tmpdt))
-
-    for (kk in 1:length(tmpdt)) {
-
-        mutcat <- names(tmpdt)[kk]
-        tmpdt[[mutcat]][, "p" := useRmutreg(rmutregList[[mutcat]], .SD)]
-
-    }
-    tmpdt <- rbindlist(tmpdt)[order(idx)]
+    tmpdt <- data.table::copy(.xdt)
+    tmpdt[
+        ,
+        "p" := useRmutreg(rmutregList[[paste0(.BY$kmer, "_", .BY$mut)]], .SD),
+        by = c("kmer", "mut")
+    ]
 
     return(tmpdt$p)
 
@@ -419,10 +413,14 @@ useRmutreg <- function(rmutreg, mcatdt) {
     beta_hat <- coef(rmutreg)
     sigma_hat <- sigma(rmutreg)
 
-    X <- model.matrix(.formula, mcatdt)
+    # parse formula
+    formula_vec <- as.character(.formula)
+    formulaString <- paste0("~", gsub("[[:space:]]", "", formula_vec[3]))
+
+    X <- model.matrix(as.formula(formulaString), mcatdt)
     mu <- exp(X %*% beta_hat)
     p <- (mu * sigma_hat) / (mu + sigma_hat)
 
-    return(p)
+    return(p[, 1])
 
 }

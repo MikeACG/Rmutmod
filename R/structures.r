@@ -321,14 +321,14 @@ modelGet <- function(x) {
 }
 
 #' @export
-modelGet.MutMatrix <- function(mutmatrix) {
+modelGet.Rmutmod <- function(rmutmod) {
 
     return(mutmatrix$modeldt)
 
 }
 
 #' @export
-modelGet.MonoMAFglmmTMB <- function(monoMAFglmmTMB) {
+modelGet.MonoMAFglmmTMB <- function(rmutmod) {
 
     return(monoMAFglmmTMB$model)
 
@@ -472,6 +472,35 @@ featureLevels <- function(x) {
     UseMethod("featureLevels", x)
 
 }
+
+#' @export
+formulaGet <- function(x) {
+
+    UseMethod("formulaGet", x)
+
+}
+
+#' @export
+formulaGet.Rmutreg <- function(rmutreg) {
+
+    return(rmutreg$formula)
+
+}
+
+#' @export
+coef.Rmutreg <- function(rmutreg) {
+
+    return(rmutreg$beta_hat)
+    
+}
+
+#' @export
+sigma.Rmutreg <- function(rmutreg) {
+
+    return(rmutreg$sigma_hat)
+    
+}
+
 
 #' @export
 featureLevels.MutMatrix <- function(mutMatrix) {
