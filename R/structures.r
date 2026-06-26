@@ -323,7 +323,7 @@ modelGet <- function(x) {
 #' @export
 modelGet.Rmutmod <- function(rmutmod) {
 
-    return(rmutmod$modeldt)
+    return(rmutmod$model)
 
 }
 
